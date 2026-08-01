@@ -1,0 +1,218 @@
+:root {
+  --bg: #0d0f13;
+  --bg-elevated: #14171d;
+  --surface: #171b22;
+  --surface-hover: #1e232c;
+  --border: #242a34;
+  --border-strong: #333a47;
+
+  --text: #e8eaf0;
+  --text-muted: #868e9f;
+  --text-faint: #575f70;
+
+  --accent: #6c9bff;
+  --accent-soft: rgba(108, 155, 255, 0.13);
+  --accent-line: rgba(108, 155, 255, 0.26);
+  --success: #45d19a;
+  --success-soft: rgba(69, 209, 154, 0.13);
+  --danger: #ff6259;
+  --danger-soft: rgba(255, 98, 89, 0.13);
+
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  --shadow: 0 14px 34px -16px rgba(0, 0, 0, 0.75);
+
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+input,
+textarea {
+  user-select: text;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border: 3px solid var(--bg);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-strong);
+}
+
+/* --- App shell --- */
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.app__bar {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-shrink: 0;
+  height: 40px;
+  padding: 0 16px;
+  color: var(--text-faint);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.app__content {
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* --- Icon button --- */
+
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  color: var(--text-faint);
+  transition:
+    background 0.13s ease,
+    color 0.13s ease;
+}
+
+.icon-btn:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.icon-btn.is-on {
+  color: var(--accent);
+}
+
+.icon-btn--success:hover {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.icon-btn--danger:hover {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.icon-btn--danger.is-armed {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+/* --- Labelled button --- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 33px;
+  padding: 0 14px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 500;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.btn--ghost {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-muted);
+}
+
+.btn--ghost:hover {
+  background: rgba(255, 255, 255, 0.11);
+  color: var(--text);
+}
+
+.btn--success {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.btn--success:hover {
+  background: var(--success);
+  color: var(--bg);
+}
+
+/* --- Pulse dot --- */
+
+.pulse {
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: pulse 2.2s ease-out infinite;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(108, 155, 255, 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 7px rgba(108, 155, 255, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(108, 155, 255, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
