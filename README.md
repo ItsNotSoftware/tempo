@@ -1,0 +1,1 @@
+Tempo is a lightweight desktop app for tracking goals, todos, and time.
