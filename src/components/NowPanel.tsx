@@ -38,14 +38,14 @@ export function NowPanel({ task, now, api }: NowPanelProps) {
 
         <div className="now__actions">
           <button className="btn btn--ghost" onClick={() => api.stop(task.id)}>
-            <Pause size={14} strokeWidth={2.25} fill="currentColor" />
+            <Pause size={15} strokeWidth={2.25} fill="currentColor" />
             Pause
           </button>
           <button
             className="btn btn--success"
             onClick={() => api.finish(task.id)}
           >
-            <Check size={15} strokeWidth={2.5} />
+            <Check size={16} strokeWidth={2.5} />
             Finish
           </button>
         </div>

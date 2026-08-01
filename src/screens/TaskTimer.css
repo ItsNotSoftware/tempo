@@ -1,7 +1,7 @@
 .timer {
-  max-width: 620px;
+  max-width: 700px;
   margin: 0 auto;
-  padding: 26px 24px 64px;
+  padding: 28px 26px 64px;
 }
 
 /* --- Header --- */
@@ -14,15 +14,15 @@
 
 .timer__total {
   font-family: var(--mono);
-  font-size: 27px;
+  font-size: 33px;
   font-weight: 300;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.04em;
 }
 
 .timer__sub {
-  margin-left: 9px;
-  font-size: 12px;
+  margin-left: 11px;
+  font-size: 15px;
   color: var(--text-faint);
 }
 
@@ -31,26 +31,34 @@
 .split {
   display: flex;
   gap: 2px;
-  height: 5px;
-  margin-bottom: 20px;
+  height: 7px;
+  margin-bottom: 24px;
 }
 
 .split__seg {
-  min-width: 5px;
+  min-width: 6px;
   flex-basis: 0;
   border-radius: 99px;
   background: var(--text-faint);
+  transition: opacity 0.15s ease;
 }
 
 .split__seg.is-live {
   background: var(--accent);
-  opacity: 1 !important;
+}
+
+.split__seg.is-pointed {
+  background: var(--text);
+}
+
+.split__seg.is-live.is-pointed {
+  background: var(--accent);
 }
 
 /* --- Now tracking --- */
 
 .now {
-  padding: 15px 18px 16px;
+  padding: 16px 20px 17px;
   margin-bottom: 14px;
   border: 1px solid var(--accent-line);
   border-radius: 16px;
@@ -78,8 +86,8 @@
 .now__badge {
   display: flex;
   align-items: center;
-  gap: 7px;
-  font-size: 10px;
+  gap: 8px;
+  font-size: 11.5px;
   font-weight: 600;
   letter-spacing: 0.13em;
   text-transform: uppercase;
@@ -87,13 +95,13 @@
 }
 
 .now__since {
-  font-size: 11px;
+  font-size: 12.5px;
   color: var(--text-faint);
 }
 
 .now__name {
-  margin: 7px 0 0;
-  font-size: 16px;
+  margin: 8px 0 0;
+  font-size: 18.5px;
   font-weight: 500;
   line-height: 1.35;
   white-space: nowrap;
@@ -128,6 +136,30 @@
   flex-shrink: 0;
 }
 
+/* In a narrow window, chrome gives its width back to the task names. */
+@media (max-width: 560px) {
+  .timer {
+    padding: 22px 14px 48px;
+  }
+
+  .task {
+    padding: 9px 7px 9px 8px;
+  }
+
+  .task__row {
+    gap: 8px;
+  }
+
+  .task__actions {
+    min-width: 100px;
+  }
+
+  .task__notes {
+    width: calc(100% - 43px);
+    margin-left: 43px;
+  }
+}
+
 /* In a short window the hero gives ground back to the list. */
 @media (max-height: 560px) {
   .timer {
@@ -135,7 +167,7 @@
   }
 
   .timer__total {
-    font-size: 23px;
+    font-size: 28px;
   }
 
   .now {
@@ -157,10 +189,10 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 6px 6px 14px;
-  margin-bottom: 18px;
+  padding: 8px 8px 8px 18px;
+  margin-bottom: 22px;
   border: 1px solid var(--border);
-  border-radius: 13px;
+  border-radius: 15px;
   background: var(--bg-elevated);
   transition:
     border-color 0.15s ease,
@@ -177,7 +209,7 @@
   min-width: 0;
   border: none;
   background: none;
-  padding: 7px 0;
+  padding: 9px 0;
 }
 
 .composer input:focus {
@@ -190,11 +222,11 @@
 
 .composer__hint {
   flex-shrink: 0;
-  padding: 2px 6px;
+  padding: 3px 8px;
   border: 1px solid var(--border);
-  border-radius: 5px;
+  border-radius: 6px;
   font-family: inherit;
-  font-size: 10.5px;
+  font-size: 13px;
   color: var(--text-faint);
   transition: opacity 0.15s ease;
 }
@@ -208,12 +240,12 @@
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
-  height: 32px;
-  padding: 0 13px 0 11px;
-  border-radius: 9px;
+  height: 40px;
+  padding: 0 16px 0 13px;
+  border-radius: 11px;
   background: var(--accent-soft);
   color: var(--accent);
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 500;
   transition:
     opacity 0.15s ease,
@@ -238,9 +270,9 @@
   flex-direction: column;
   align-items: center;
   gap: 9px;
-  padding: 52px 0;
+  padding: 60px 0;
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: 16px;
   text-align: center;
 }
 
@@ -249,8 +281,8 @@
 }
 
 .timer__empty-sub {
-  margin-top: -5px;
-  font-size: 12px;
+  margin-top: -4px;
+  font-size: 15px;
   color: var(--text-faint);
 }
 
@@ -259,7 +291,7 @@
 .timer__list {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
 }
 
 .timer__section {
@@ -267,10 +299,10 @@
   align-items: center;
   gap: 6px;
   align-self: flex-start;
-  margin: 22px 0 6px;
-  padding: 3px 8px 3px 4px;
+  margin: 24px 0 7px;
+  padding: 3px 9px 3px 5px;
   border-radius: 7px;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.13em;
   text-transform: uppercase;
@@ -283,7 +315,7 @@
 }
 
 .timer__count {
-  font-size: 10px;
+  font-size: 12px;
   letter-spacing: 0.05em;
   opacity: 0.75;
 }
@@ -299,8 +331,8 @@
 /* --- Task --- */
 
 .task {
-  border-radius: 12px;
-  padding: 8px 8px 8px 9px;
+  border-radius: 14px;
+  padding: 11px 11px 11px 12px;
   border: 1px solid transparent;
   transition:
     background 0.15s ease,
@@ -312,9 +344,24 @@
   background: var(--surface);
 }
 
+/* Pointing at a bar slice reaches down and marks its row. */
+.task--marked {
+  background: var(--surface);
+  border-color: var(--border-strong);
+}
+
 .task--running {
   background: var(--accent-soft);
   border-color: var(--accent-line);
+}
+
+.task--running.task--marked {
+  background: rgba(108, 155, 255, 0.17);
+  border-color: var(--accent);
+}
+
+.task--done.task--marked {
+  opacity: 1;
 }
 
 .task--running:hover,
@@ -342,8 +389,8 @@
 .task__toggle {
   display: grid;
   place-items: center;
-  width: 29px;
-  height: 29px;
+  width: 35px;
+  height: 35px;
   flex-shrink: 0;
   border-radius: 50%;
   border: 1px solid var(--border-strong);
@@ -412,11 +459,11 @@
 .task__name {
   flex: 1;
   min-width: 0;
-  padding: 4px 7px;
+  padding: 6px 9px;
   border: 1px solid transparent;
-  border-radius: 7px;
+  border-radius: 8px;
   background: none;
-  font-size: 14px;
+  font-size: 17px;
   text-overflow: ellipsis;
   transition:
     background 0.13s ease,
@@ -442,7 +489,7 @@
 .task__elapsed {
   flex-shrink: 0;
   font-family: var(--mono);
-  font-size: 13px;
+  font-size: 16px;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
   color: var(--text-faint);
@@ -460,7 +507,7 @@
   gap: 1px;
   flex-shrink: 0;
   /* Reserve the full 3-icon width so rows missing one still line up */
-  min-width: 86px;
+  min-width: 105px;
 }
 
 .task__actions > button {
@@ -479,13 +526,13 @@
 
 .task__notes {
   display: block;
-  width: calc(100% - 39px);
-  margin: 7px 0 3px 39px;
-  padding: 9px 11px;
+  width: calc(100% - 45px);
+  margin: 9px 0 3px 45px;
+  padding: 11px 13px;
   border: 1px solid var(--border);
   border-radius: 9px;
   background: var(--bg);
-  font-size: 13px;
+  font-size: 16px;
   line-height: 1.6;
   resize: vertical;
 }

@@ -63,22 +63,19 @@ export function useTasks() {
   return {
     tasks,
 
-    /** Newest first, and already running — you type a task to start it. */
+    /** Idle, in the order typed — you often line a few up before starting any. */
     add(name: string) {
-      setTasks((current) => {
-        const at = Date.now();
-        return [
-          {
-            id: crypto.randomUUID(),
-            name,
-            notes: "",
-            accumulatedMs: 0,
-            startedAt: at,
-            completedAt: null,
-          },
-          ...current.map((t) => stopped(t, at)),
-        ];
-      });
+      setTasks((current) => [
+        ...current,
+        {
+          id: crypto.randomUUID(),
+          name,
+          notes: "",
+          accumulatedMs: 0,
+          startedAt: null,
+          completedAt: null,
+        },
+      ]);
     },
 
     rename: (id: string, name: string) => update(id, (t) => ({ ...t, name })),
