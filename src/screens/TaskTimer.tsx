@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Timer } from "lucide-react";
+import { useEstimateAlerts } from "../lib/alerts";
+import { useTray } from "../lib/tray";
 import { Composer } from "../components/Composer";
 import { NowPanel } from "../components/NowPanel";
 import { TaskCard } from "../components/TaskCard";
@@ -39,9 +41,15 @@ export function TaskTimer() {
   const current = running[0] ?? null;
 
   // Derived from `now` rather than stored, so the view re-anchors past midnight.
-  const from = addDays(startOfDay(now), -dayOffset);
+  const today = startOfDay(now);
+  const from = addDays(today, -dayOffset);
   const to = addDays(from, 1);
   const isToday = dayOffset === 0;
+
+  // Both live outside the window, so they answer for today whatever day is
+  // being looked at in here.
+  useTray(api, now, today, addDays(today, 1));
+  useEstimateAlerts(api.tasks, api.groups, now);
 
   // Today is the workspace, so tasks lined up but never started ride along —
   // the queue must not vanish overnight. A past day is only what happened on it.
