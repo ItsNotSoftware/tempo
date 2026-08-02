@@ -17,6 +17,16 @@
   --success-soft: rgba(69, 209, 154, 0.13);
   --danger: #ff6259;
   --danger-soft: rgba(255, 98, 89, 0.13);
+  --warn: #e3a94f;
+  --warn-soft: rgba(227, 169, 79, 0.13);
+
+  /* Story hues — picked by hash, so a key keeps its colour between sessions. */
+  --story-1: #6c9bff;
+  --story-2: #c58af9;
+  --story-3: #4fc4cf;
+  --story-4: #e3a94f;
+  --story-5: #f27a94;
+  --story-6: #8ec07c;
 
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
   --shadow: 0 14px 34px -16px rgba(0, 0, 0, 0.75);

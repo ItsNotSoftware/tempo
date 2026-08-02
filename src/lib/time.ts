@@ -2,6 +2,48 @@ const HOUR = 3_600_000;
 const MINUTE = 60_000;
 const SECOND = 1000;
 
+/** Midnight at the top of `ts`'s day, in local time. */
+export function startOfDay(ts: number): number {
+  const day = new Date(ts);
+  day.setHours(0, 0, 0, 0);
+  return day.getTime();
+}
+
+/**
+ * Walk whole days from a midnight. Done through `Date` rather than ±86400000
+ * so the clocks changing doesn't drift the boundary off midnight.
+ */
+export function addDays(dayStart: number, days: number): number {
+  const day = new Date(dayStart);
+  day.setDate(day.getDate() + days);
+  day.setHours(0, 0, 0, 0);
+  return day.getTime();
+}
+
+/** `Today` / `Yesterday` / `Fri 1 Aug` for the day nav. */
+export function formatDay(dayStart: number, now: number): string {
+  const back = Math.round((startOfDay(now) - dayStart) / 86_400_000);
+  if (back === 0) return "Today";
+  if (back === 1) return "Yesterday";
+  return new Date(dayStart).toLocaleDateString([], {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
+}
+
+/** `1h 30m`, `45m`, `2h`, `90` — round-trips whatever `formatDurationShort` writes. */
+const ESTIMATE = /^\s*(?:(\d+)\s*h)?\s*(?:(\d+)\s*m?)?\s*$/i;
+
+export function parseEstimate(text: string): number | null {
+  const match = ESTIMATE.exec(text.replace(/^\s*~/, ""));
+  if (match === null) return null;
+  const [, hours, minutes] = match;
+  if (hours === undefined && minutes === undefined) return null;
+  const ms = Number(hours ?? 0) * HOUR + Number(minutes ?? 0) * MINUTE;
+  return ms > 0 ? ms : null;
+}
+
 function pad(value: number): string {
   return value.toString().padStart(2, "0");
 }

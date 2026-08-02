@@ -1,16 +1,26 @@
 import { Check, Pause } from "lucide-react";
-import { elapsedMs, type Task, type TasksApi } from "../lib/tasks";
+import {
+  elapsedBetween,
+  startedAt,
+  storyTone,
+  type Task,
+  type TasksApi,
+} from "../lib/tasks";
 import { formatTimeOfDay, splitClock } from "../lib/time";
 
 interface NowPanelProps {
   task: Task;
   now: number;
+  /** Today, so the clock agrees with the row underneath it. */
+  from: number;
+  to: number;
   api: TasksApi;
 }
 
 /** The running task, front and centre: what it is and how long it's been. */
-export function NowPanel({ task, now, api }: NowPanelProps) {
-  const [clock, seconds] = splitClock(elapsedMs(task, now));
+export function NowPanel({ task, now, from, to, api }: NowPanelProps) {
+  const [clock, seconds] = splitClock(elapsedBetween(task, from, to, now));
+  const since = startedAt(task);
 
   return (
     <section className="now" aria-label="Currently tracking">
@@ -19,14 +29,20 @@ export function NowPanel({ task, now, api }: NowPanelProps) {
           <i className="pulse" />
           Tracking
         </span>
-        {task.startedAt !== null && (
-          <span className="now__since">
-            since {formatTimeOfDay(task.startedAt)}
-          </span>
+        {since !== null && (
+          <span className="now__since">since {formatTimeOfDay(since)}</span>
         )}
       </div>
 
       <h2 className="now__name" title={task.name}>
+        {task.story !== null && (
+          <span
+            className="now__story"
+            style={{ color: `var(--story-${storyTone(task.story)})` }}
+          >
+            {task.story}
+          </span>
+        )}
         {task.name.trim() || "Untitled"}
       </h2>
 

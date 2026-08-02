@@ -20,9 +20,65 @@
   letter-spacing: -0.04em;
 }
 
+.timer__estimate {
+  margin-left: 9px;
+  font-family: var(--mono);
+  font-size: 17px;
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+}
+
+.timer__estimate.is-over {
+  color: var(--warn);
+}
+
 .timer__sub {
   margin-left: 11px;
   font-size: 15px;
+  color: var(--text-faint);
+}
+
+/* --- Day nav --- */
+
+.timer__days {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  align-self: center;
+}
+
+.timer__day {
+  /* Fixed so stepping between `Today` and `Fri 1 Aug` doesn't shift the arrows. */
+  min-width: 96px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  color: var(--text-muted);
+  text-align: center;
+  transition:
+    background 0.13s ease,
+    color 0.13s ease;
+}
+
+.timer__day:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.timer__day:disabled {
+  cursor: default;
+  color: var(--text-faint);
+}
+
+.timer__days .icon-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.timer__days .icon-btn:disabled:hover {
+  background: none;
   color: var(--text-faint);
 }
 
@@ -43,8 +99,10 @@
   transition: opacity 0.15s ease;
 }
 
+/* A story slice paints its own hue inline; this is the fallback for lone tasks. */
 .split__seg.is-live {
   background: var(--accent);
+  filter: brightness(1.15);
 }
 
 .split__seg.is-pointed {
@@ -99,6 +157,13 @@
   color: var(--text-faint);
 }
 
+.now__story {
+  margin-right: 9px;
+  font-family: var(--mono);
+  font-size: 15.5px;
+  font-weight: 600;
+}
+
 .now__name {
   margin: 8px 0 0;
   font-size: 18.5px;
@@ -151,12 +216,29 @@
   }
 
   .task__actions {
-    min-width: 100px;
+    min-width: 135px;
   }
 
   .task__notes {
     width: calc(100% - 43px);
     margin-left: 43px;
+  }
+
+  .story__head {
+    padding-right: 152px;
+  }
+
+  .task__budget {
+    left: 53px;
+    right: 152px;
+  }
+
+  .story__tasks {
+    padding-left: 8px;
+  }
+
+  .timer__day {
+    min-width: 78px;
   }
 }
 
@@ -189,7 +271,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 8px 8px 18px;
+  padding: 8px;
   margin-bottom: 22px;
   border: 1px solid var(--border);
   border-radius: 15px;
@@ -204,7 +286,7 @@
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
-.composer input {
+.composer > input {
   flex: 1;
   min-width: 0;
   border: none;
@@ -212,11 +294,131 @@
   padding: 9px 0;
 }
 
-.composer input:focus {
+.composer > input:focus {
   outline: none;
 }
 
-.composer input::placeholder {
+.composer > input::placeholder {
+  color: var(--text-faint);
+}
+
+/* --- Story picker --- */
+
+.composer__picker {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* Says where the next task lands before you type it — this is the whole point. */
+.composer__story {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 8px 0 11px;
+  border-radius: 10px;
+  font-size: 14.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  transition:
+    background 0.13s ease,
+    color 0.13s ease;
+}
+
+.composer__story:hover,
+.composer__story.is-open {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.composer__divider {
+  width: 1px;
+  height: 21px;
+  flex-shrink: 0;
+  background: var(--border);
+}
+
+.composer__menu {
+  position: absolute;
+  top: calc(100% + 9px);
+  left: 0;
+  z-index: 10;
+  min-width: 235px;
+  padding: 5px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow);
+  animation: menu-in 0.13s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+}
+
+.composer__option {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: 8px;
+  font-size: 15px;
+  color: var(--text-muted);
+  text-align: left;
+  transition:
+    background 0.1s ease,
+    color 0.1s ease;
+}
+
+.composer__option:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.composer__option.is-on {
+  color: var(--accent);
+}
+
+.composer__note {
+  margin-left: auto;
+  font-size: 12.5px;
+  color: var(--text-faint);
+}
+
+.composer__rule {
+  height: 1px;
+  margin: 5px 4px;
+  background: var(--border);
+}
+
+.composer__new {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  font-family: var(--mono);
+  font-size: 14px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.composer__new:focus {
+  outline: none;
+  border-color: var(--accent-line);
+}
+
+.composer__new::placeholder {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 14.5px;
+  letter-spacing: 0;
+  text-transform: none;
   color: var(--text-faint);
 }
 
@@ -235,7 +437,8 @@
   opacity: 0;
 }
 
-.composer button {
+/* Direct child only — the picker and its menu are buttons in here too. */
+.composer > button {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -253,12 +456,12 @@
     color 0.15s ease;
 }
 
-.composer button:hover:not(:disabled) {
+.composer > button:hover:not(:disabled) {
   background: var(--accent);
   color: var(--bg);
 }
 
-.composer button:disabled {
+.composer > button:disabled {
   opacity: 0.35;
   cursor: not-allowed;
 }
@@ -284,6 +487,16 @@
   margin-top: -4px;
   font-size: 15px;
   color: var(--text-faint);
+}
+
+.timer__empty-sub code {
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  font-family: var(--mono);
+  font-size: 13.5px;
+  color: var(--text-muted);
 }
 
 /* --- Lists --- */
@@ -328,9 +541,144 @@
   transform: rotate(90deg);
 }
 
+/* --- Story block --- */
+
+.story {
+  padding: 2px 0 5px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.story.is-marked {
+  background: rgba(255, 255, 255, 0.022);
+  border-color: var(--border);
+}
+
+.story__head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  /* Right padding clears the rows' action column (11 + 139 + 10) so the
+     roll-up lands directly above the times it adds up. */
+  padding: 4px 160px 4px 5px;
+}
+
+.story__collapse {
+  display: grid;
+  place-items: center;
+  width: 23px;
+  height: 23px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  color: var(--text-faint);
+  transition:
+    background 0.13s ease,
+    color 0.13s ease;
+}
+
+.story__collapse:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.story__dot {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: 50%;
+}
+
+/* Renaming here moves every task under it, so it stays a real input. */
+.story__key {
+  width: 12ch;
+  min-width: 0;
+  padding: 3px 7px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: none;
+  font-family: var(--mono);
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.story__key:hover {
+  background: var(--surface-hover);
+}
+
+.story__key:focus {
+  outline: none;
+  background: var(--bg);
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.story__count {
+  font-size: 12.5px;
+  color: var(--text-faint);
+}
+
+/* The shortcut route into a story; the composer's picker is the obvious one. */
+.story__add {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: 7px;
+  color: var(--text-faint);
+  opacity: 0;
+  transition:
+    opacity 0.15s ease,
+    background 0.13s ease,
+    color 0.13s ease;
+}
+
+.story:hover .story__add,
+.story:focus-within .story__add {
+  opacity: 1;
+}
+
+.story__add:hover {
+  background: var(--surface-hover);
+  color: var(--accent);
+}
+
+.story__total {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 13.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
+.story__estimate {
+  font-family: var(--mono);
+  font-size: 13.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+}
+
+.story__estimate.is-over {
+  color: var(--warn);
+}
+
+.story__tasks {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-left: 15px;
+}
+
 /* --- Task --- */
 
 .task {
+  position: relative;
   border-radius: 14px;
   padding: 11px 11px 11px 12px;
   border: 1px solid transparent;
@@ -454,6 +802,23 @@
   opacity: 1;
 }
 
+/* On a past day the toggle is just a status glyph — nothing to press. */
+.task__toggle--static {
+  border-color: var(--border);
+  color: var(--text-faint);
+}
+
+/* Story key, for rows shown outside their block (the done list) */
+
+.task__story {
+  flex-shrink: 0;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  opacity: 0.85;
+}
+
 /* Name */
 
 .task__name {
@@ -484,10 +849,27 @@
   color: var(--text-muted);
 }
 
-/* Elapsed */
+/* On a past day nothing here is editable, so nothing should invite a click. */
+.task__name[readonly],
+.story__key[readonly] {
+  cursor: default;
+}
+
+.task__name[readonly]:hover,
+.story__key[readonly]:hover {
+  background: none;
+}
+
+/* Elapsed, and the estimate it's measured against */
+
+.task__time {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-shrink: 0;
+}
 
 .task__elapsed {
-  flex-shrink: 0;
   font-family: var(--mono);
   font-size: 16px;
   font-variant-numeric: tabular-nums;
@@ -499,6 +881,68 @@
   color: var(--accent);
 }
 
+.task__estimate {
+  font-family: var(--mono);
+  font-size: 13.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+}
+
+/* Matches this row's own bar. Roll-ups stay amber — a sum is a softer signal. */
+.task__estimate.is-over {
+  color: var(--danger);
+}
+
+.task__estimate-field {
+  /* Wide enough for `1h 30m` once padding and border take their cut. */
+  width: 10ch;
+  padding: 3px 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  background: var(--bg);
+  font-family: var(--mono);
+  font-size: 13.5px;
+}
+
+.task__estimate-field:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.task__estimate-field::placeholder {
+  color: var(--text-faint);
+}
+
+/* Budget hairline: accent under, amber closing in, red past the estimate.
+   Absolute so an estimated row is exactly as tall as one without, and spanning
+   only the name-to-time columns so it reads as this row's, not a rule between rows. */
+.task__budget {
+  position: absolute;
+  left: 57px;
+  right: 160px;
+  bottom: 6px;
+  height: 2px;
+  border-radius: 99px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.task__budget > i {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+  background: var(--accent);
+  transition: width 0.3s ease;
+}
+
+.task__budget.is-near > i {
+  background: var(--warn);
+}
+
+.task__budget.is-over > i {
+  background: var(--danger);
+}
+
 /* Actions — quiet until the row is touched */
 
 .task__actions {
@@ -506,8 +950,8 @@
   justify-content: flex-end;
   gap: 1px;
   flex-shrink: 0;
-  /* Reserve the full 3-icon width so rows missing one still line up */
-  min-width: 105px;
+  /* Reserve the full 4-icon width so rows missing one still line up */
+  min-width: 139px;
 }
 
 .task__actions > button {
