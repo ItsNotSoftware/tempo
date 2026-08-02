@@ -2,7 +2,7 @@ import { Check, Pause } from "lucide-react";
 import {
   elapsedBetween,
   startedAt,
-  storyTone,
+  groupTone,
   type Task,
   type TasksApi,
 } from "../lib/tasks";
@@ -35,12 +35,12 @@ export function NowPanel({ task, now, from, to, api }: NowPanelProps) {
       </div>
 
       <h2 className="now__name" title={task.name}>
-        {task.story !== null && (
+        {task.group !== null && (
           <span
-            className="now__story"
-            style={{ color: `var(--story-${storyTone(task.story)})` }}
+            className="now__group"
+            style={{ color: `var(--group-${groupTone(task.group)})` }}
           >
-            {task.story}
+            {task.group}
           </span>
         )}
         {task.name.trim() || "Untitled"}

@@ -6,28 +6,28 @@ import {
   type RefObject,
 } from "react";
 import { ChevronDown, Minus, Plus } from "lucide-react";
-import { storyTone } from "../lib/tasks";
+import { groupTone, normalizeGroup } from "../lib/tasks";
 
 const HOTKEY = navigator.userAgent.includes("Mac") ? "⌘K" : "Ctrl K";
 
 interface ComposerProps {
-  /** Stories already in use, most recently touched first. */
-  stories: string[];
-  /** What new tasks get filed under; `null` means a standalone task. */
-  story: string | null;
-  onStory: (story: string | null) => void;
+  /** Groups already in use, most recently touched first. */
+  groups: string[];
+  /** What new tasks get filed under; `null` means a task on its own. */
+  group: string | null;
+  onGroup: (group: string | null) => void;
   onAdd: (text: string) => void;
   inputRef: RefObject<HTMLInputElement | null>;
 }
 
 /**
  * Add a task, and say up front where it goes. The picker stays on what you last
- * chose, so lining up five tasks under one story is pick-once then type-enter.
+ * chose, so lining up five tasks under one group is pick-once then type-enter.
  */
 export function Composer({
-  stories,
-  story,
-  onStory,
+  groups,
+  group,
+  onGroup,
   onAdd,
   inputRef,
 }: ComposerProps) {
@@ -52,7 +52,7 @@ export function Composer({
   }, [open]);
 
   function pick(next: string | null) {
-    onStory(next);
+    onGroup(next);
     setOpen(false);
     inputRef.current?.focus();
   }
@@ -70,27 +70,23 @@ export function Composer({
       <div className="composer__picker" ref={picker}>
         <button
           type="button"
-          className={`composer__story${open ? " is-open" : ""}`}
-          aria-label="Choose story"
+          className={`composer__group${open ? " is-open" : ""}`}
+          aria-label="Choose group"
           aria-haspopup="menu"
           aria-expanded={open}
           title="Where new tasks go"
           onClick={() => setOpen((was) => !was)}
         >
-          {story === null ? (
-            <>
-              <Minus size={13} strokeWidth={3} />
-              No story
-            </>
+          {group === null ? (
+            <Minus size={13} strokeWidth={3} />
           ) : (
-            <>
-              <i
-                className="story__dot"
-                style={{ background: `var(--story-${storyTone(story)})` }}
-              />
-              {story}
-            </>
+            <i
+              className="group__dot"
+              style={{ background: `var(--group-${groupTone(group)})` }}
+            />
           )}
+          {/* Capped so a long name can't squeeze the task field to nothing. */}
+          <span className="composer__label">{group ?? "No group"}</span>
           <ChevronDown size={13} strokeWidth={2.5} />
         </button>
 
@@ -98,43 +94,43 @@ export function Composer({
           <div className="composer__menu">
             <button
               type="button"
-              className={`composer__option${story === null ? " is-on" : ""}`}
+              className={`composer__option${group === null ? " is-on" : ""}`}
               onClick={() => pick(null)}
             >
               <Minus size={13} strokeWidth={3} />
-              No story
+              No group
               <span className="composer__note">on its own</span>
             </button>
 
-            {stories.length > 0 && <div className="composer__rule" />}
+            {groups.length > 0 && <div className="composer__rule" />}
 
-            {stories.map((key) => (
+            {groups.map((key) => (
               <button
                 type="button"
                 key={key}
-                className={`composer__option${story === key ? " is-on" : ""}`}
+                className={`composer__option${group === key ? " is-on" : ""}`}
                 onClick={() => pick(key)}
               >
                 <i
-                  className="story__dot"
-                  style={{ background: `var(--story-${storyTone(key)})` }}
+                  className="group__dot"
+                  style={{ background: `var(--group-${groupTone(key)})` }}
                 />
-                {key}
+                <span className="composer__label">{key}</span>
               </button>
             ))}
 
             <div className="composer__rule" />
 
-            {/* Typing a key here is how the first story ever gets made. */}
+            {/* Typing a name here is how the first group ever gets made. */}
             <input
               className="composer__new"
-              placeholder="New story…"
-              aria-label="New story key"
+              placeholder="New group…"
+              aria-label="New group name"
               spellCheck={false}
               onKeyDown={(e) => {
                 if (e.key !== "Enter") return;
                 e.preventDefault();
-                const key = e.currentTarget.value.trim().toUpperCase();
+                const key = normalizeGroup(e.currentTarget.value);
                 if (key !== "") pick(key);
               }}
             />

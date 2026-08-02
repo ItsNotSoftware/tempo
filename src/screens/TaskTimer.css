@@ -99,7 +99,7 @@
   transition: opacity 0.15s ease;
 }
 
-/* A story slice paints its own hue inline; this is the fallback for lone tasks. */
+/* A group slice paints its own hue inline; this is the fallback for lone tasks. */
 .split__seg.is-live {
   background: var(--accent);
   filter: brightness(1.15);
@@ -157,7 +157,7 @@
   color: var(--text-faint);
 }
 
-.now__story {
+.now__group {
   margin-right: 9px;
   font-family: var(--mono);
   font-size: 15.5px;
@@ -224,7 +224,7 @@
     margin-left: 43px;
   }
 
-  .story__head {
+  .group__head {
     padding-right: 152px;
   }
 
@@ -233,8 +233,13 @@
     right: 152px;
   }
 
-  .story__tasks {
+  .group__tasks {
     padding-left: 8px;
+  }
+
+  /* Least important thing in the header — it goes first when room runs out. */
+  .group__count {
+    display: none;
   }
 
   .timer__day {
@@ -302,7 +307,7 @@
   color: var(--text-faint);
 }
 
-/* --- Story picker --- */
+/* --- Group picker --- */
 
 .composer__picker {
   position: relative;
@@ -312,7 +317,7 @@
 }
 
 /* Says where the next task lands before you type it — this is the whole point. */
-.composer__story {
+.composer__group {
   display: flex;
   align-items: center;
   gap: 7px;
@@ -327,8 +332,8 @@
     color 0.13s ease;
 }
 
-.composer__story:hover,
-.composer__story.is-open {
+.composer__group:hover,
+.composer__group.is-open {
   background: var(--surface-hover);
   color: var(--text);
 }
@@ -383,6 +388,14 @@
 
 .composer__option.is-on {
   color: var(--accent);
+}
+
+/* Long names get an ellipsis rather than shoving the task field off the row. */
+.composer__label {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .composer__note {
@@ -541,9 +554,9 @@
   transform: rotate(90deg);
 }
 
-/* --- Story block --- */
+/* --- Group block --- */
 
-.story {
+.group {
   padding: 2px 0 5px;
   border: 1px solid transparent;
   border-radius: 14px;
@@ -552,12 +565,12 @@
     border-color 0.15s ease;
 }
 
-.story.is-marked {
+.group.is-marked {
   background: rgba(255, 255, 255, 0.022);
   border-color: var(--border);
 }
 
-.story__head {
+.group__head {
   display: flex;
   align-items: center;
   gap: 7px;
@@ -566,7 +579,7 @@
   padding: 4px 160px 4px 5px;
 }
 
-.story__collapse {
+.group__collapse {
   display: grid;
   place-items: center;
   width: 23px;
@@ -579,21 +592,24 @@
     color 0.13s ease;
 }
 
-.story__collapse:hover {
+.group__collapse:hover {
   background: var(--surface-hover);
   color: var(--text);
 }
 
-.story__dot {
+.group__dot {
   width: 8px;
   height: 8px;
   flex-shrink: 0;
   border-radius: 50%;
 }
 
-/* Renaming here moves every task under it, so it stays a real input. */
-.story__key {
-  width: 12ch;
+/* Renaming here moves every task under it, so it stays a real input. Its width
+   is set inline from the character count — the font is monospace, so `ch` is
+   exact and a long name like `Workouts` gets the room it needs. */
+.group__name {
+  /* Its width is set inline to fit the name; flex must not claw it back. */
+  flex-shrink: 0;
   min-width: 0;
   padding: 3px 7px;
   border: 1px solid transparent;
@@ -604,75 +620,160 @@
   font-weight: 600;
   letter-spacing: 0.02em;
   color: var(--text-muted);
-  text-transform: uppercase;
+  text-overflow: ellipsis;
 }
 
-.story__key:hover {
+.group__name:hover {
   background: var(--surface-hover);
 }
 
-.story__key:focus {
+.group__name:focus {
   outline: none;
   background: var(--bg);
   border-color: var(--border-strong);
   color: var(--text);
 }
 
-.story__count {
+.group__name--static {
+  flex-shrink: 0;
+  max-width: 23ch;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.group__name[readonly] {
+  cursor: default;
+}
+
+.group__name[readonly]:hover {
+  background: none;
+}
+
+.group__count {
   font-size: 12.5px;
   color: var(--text-faint);
+  white-space: nowrap;
 }
 
-/* The shortcut route into a story; the composer's picker is the obvious one. */
-.story__add {
-  display: grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
+/* Quiet until the block is touched, like the row actions. */
+.group__actions {
+  display: flex;
+  gap: 1px;
   flex-shrink: 0;
-  border-radius: 7px;
-  color: var(--text-faint);
-  opacity: 0;
-  transition:
-    opacity 0.15s ease,
-    background 0.13s ease,
-    color 0.13s ease;
+  /* Reserved so revealing them doesn't shove the roll-up sideways. */
+  min-width: 84px;
 }
 
-.story:hover .story__add,
-.story:focus-within .story__add {
+.group__actions > button {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.group:hover .group__actions > button,
+.group:focus-within .group__actions > button,
+.group__actions > button.is-on {
   opacity: 1;
 }
 
-.story__add:hover {
-  background: var(--surface-hover);
-  color: var(--accent);
-}
-
-.story__total {
+.group__total {
   margin-left: auto;
   font-family: var(--mono);
   font-size: 13.5px;
   font-variant-numeric: tabular-nums;
   color: var(--text-muted);
+  white-space: nowrap;
 }
 
-.story__estimate {
+.group__estimate {
   font-family: var(--mono);
   font-size: 13.5px;
   font-variant-numeric: tabular-nums;
   color: var(--text-faint);
+  white-space: nowrap;
 }
 
-.story__estimate.is-over {
+.group__estimate.is-over {
   color: var(--warn);
 }
 
-.story__tasks {
+/* Same reading as a row's: accent under, amber closing in, red past it. */
+.group__budget {
+  height: 2px;
+  margin: 3px 160px 6px 50px;
+  border-radius: 99px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.group__budget > i {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+  background: var(--accent);
+  transition: width 0.3s ease;
+}
+
+.group__budget.is-near > i {
+  background: var(--warn);
+}
+
+.group__budget.is-over > i {
+  background: var(--danger);
+}
+
+.group__notes {
+  display: block;
+  width: calc(100% - 66px);
+  margin: 4px 0 8px 50px;
+  padding: 10px 13px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg);
+  font-size: 15.5px;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.group__notes::placeholder {
+  color: var(--text-faint);
+}
+
+.group__notes:focus {
+  outline: none;
+  border-color: var(--border-strong);
+}
+
+.group__tasks {
   display: flex;
   flex-direction: column;
   gap: 3px;
   padding-left: 15px;
+}
+
+/* Inside Done the header is only a label — the real one is in the ongoing list.
+   It sits back with the finished rows it labels, and comes up with them on hover. */
+.group.is-compact .group__head {
+  padding-top: 1px;
+  padding-bottom: 1px;
+  opacity: 0.55;
+  transition: opacity 0.15s ease;
+}
+
+.group.is-compact:hover .group__head,
+.group.is-compact:focus-within .group__head {
+  opacity: 1;
+}
+
+.group.is-compact .group__name--static,
+.group.is-compact .group__count,
+.group.is-compact .group__total {
+  font-size: 12.5px;
+  color: var(--text-faint);
+}
+
+.group.is-compact .group__dot {
+  width: 6px;
+  height: 6px;
 }
 
 /* --- Task --- */
@@ -808,17 +909,6 @@
   color: var(--text-faint);
 }
 
-/* Story key, for rows shown outside their block (the done list) */
-
-.task__story {
-  flex-shrink: 0;
-  font-family: var(--mono);
-  font-size: 12.5px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  opacity: 0.85;
-}
-
 /* Name */
 
 .task__name {
@@ -851,12 +941,12 @@
 
 /* On a past day nothing here is editable, so nothing should invite a click. */
 .task__name[readonly],
-.story__key[readonly] {
+.group__key[readonly] {
   cursor: default;
 }
 
 .task__name[readonly]:hover,
-.story__key[readonly]:hover {
+.group__key[readonly]:hover {
   background: none;
 }
 

@@ -9,8 +9,8 @@ export interface Segment {
 
 export interface Task {
   id: string;
-  /** Story key like `TEMPO-42`, uppercased; `null` when the name carried none. */
-  story: string | null;
+  /** The group this belongs to; `null` when it stands on its own. */
+  group: string | null;
   name: string;
   notes: string;
   estimateMs: number | null;
@@ -20,21 +20,42 @@ export interface Task {
   completedAt: number | null;
 }
 
+/** What a group carries beyond its tasks. Keyed by name — groups have no id. */
+export interface Group {
+  estimateMs: number | null;
+  notes: string;
+}
+
+export type Groups = Record<string, Group>;
+
+export const EMPTY_GROUP: Group = { estimateMs: null, notes: "" };
+
 export type TaskStatus = "idle" | "running" | "done";
 
-/** A leading `TEMPO-42 ` claims the rest of the line as its task. */
-export const STORY_KEY = /^([a-z][a-z0-9]*-\d+)\s+/i;
+/**
+ * A leading `TEMPO-42 ` claims the rest of the line as its task. Deliberately
+ * only the ticket shape — a looser rule would split every two-word task in half.
+ * Any other name (`Workouts`, `Admin`) is made with the picker instead.
+ */
+export const GROUP_KEY = /^([a-z][a-z0-9]*-\d+)\s+/i;
 
 /** A trailing `~45m` / `~1h30m` sets the estimate. */
 const ESTIMATE_SUFFIX = /\s+~\s*([\dhm\s]*)$/i;
 
+/** Ticket-shaped names go uppercase so `tempo-42` and `TEMPO-42` are one group.
+ *  Anything else keeps the case you typed — `Workouts` shouldn't shout. */
+export function normalizeGroup(name: string): string {
+  const trimmed = name.trim();
+  return /^[a-z][a-z0-9]*-\d+$/i.test(trimmed) ? trimmed.toUpperCase() : trimmed;
+}
+
 export interface Entry {
-  story: string | null;
+  group: string | null;
   name: string;
   estimateMs: number | null;
 }
 
-/** Split a typed line into the story, the task and the estimate. */
+/** Split a typed line into the group, the task and the estimate. */
 export function parseEntry(text: string): Entry {
   let name = text.trim();
 
@@ -46,33 +67,31 @@ export function parseEntry(text: string): Entry {
     if (estimateMs !== null) name = name.slice(0, estimate.index).trim();
   }
 
-  let story: string | null = null;
-  const key = STORY_KEY.exec(name);
+  let group: string | null = null;
+  const key = GROUP_KEY.exec(name);
   if (key !== null) {
-    story = key[1].toUpperCase();
+    group = key[1].toUpperCase();
     name = name.slice(key[0].length).trim();
   }
 
-  return { story, name, estimateMs };
+  return { group, name, estimateMs };
 }
 
-/** Every story in use, the one you touched most recently first. */
-export function knownStories(tasks: Task[]): string[] {
+/** Every group in use, the one you touched most recently first. */
+export function knownGroups(tasks: Task[]): string[] {
   const latest = new Map<string, number>();
   for (const task of tasks) {
-    if (task.story === null) continue;
-    latest.set(task.story, Math.max(latest.get(task.story) ?? 0, task.createdAt));
+    if (task.group === null) continue;
+    latest.set(task.group, Math.max(latest.get(task.group) ?? 0, task.createdAt));
   }
-  return [...latest]
-    .sort((a, b) => b[1] - a[1])
-    .map(([story]) => story);
+  return [...latest].sort((a, b) => b[1] - a[1]).map(([group]) => group);
 }
 
-/** Stable 1–6 bucket, so a story keeps the same colour run to run. */
-export function storyTone(story: string): number {
+/** Stable 1–6 bucket, so a group keeps the same colour run to run. */
+export function groupTone(group: string): number {
   let hash = 0;
-  for (let i = 0; i < story.length; i++) {
-    hash = (hash * 31 + story.charCodeAt(i)) | 0;
+  for (let i = 0; i < group.length; i++) {
+    hash = (hash * 31 + group.charCodeAt(i)) | 0;
   }
   return (Math.abs(hash) % 6) + 1;
 }
@@ -122,9 +141,7 @@ export function touchesDay(task: Task, from: number, to: number): boolean {
   ) {
     return true;
   }
-  return task.segments.some(
-    (s) => s.start < to && (s.end ?? Infinity) >= from,
-  );
+  return task.segments.some((s) => s.start < to && (s.end ?? Infinity) >= from);
 }
 
 /** Lined up but never started — the queue, which carries across days. */
@@ -145,10 +162,16 @@ function closed(task: Task, at: number): Task {
   };
 }
 
-const STORAGE_KEY = "tempo.tasks.v2";
-const LEGACY_KEY = "tempo.tasks.v1";
+const TASKS_KEY = "tempo.tasks.v3";
+const GROUPS_KEY = "tempo.groups.v1";
+const V2_KEY = "tempo.tasks.v2";
+const V1_KEY = "tempo.tasks.v1";
 
-interface LegacyTask {
+interface V2Task extends Omit<Task, "group"> {
+  story?: string | null;
+}
+
+interface V1Task {
   id?: string;
   name?: string;
   notes?: string;
@@ -163,7 +186,7 @@ interface LegacyTask {
  * figure — and for a task that was running, keeps its clock running across the
  * upgrade. The day that time lands on is a guess; it was never recorded.
  */
-function migrate(legacy: LegacyTask[], at: number): Task[] {
+function fromV1(legacy: V1Task[], at: number): Task[] {
   return legacy.map((old) => {
     const banked = Math.max(0, old.accumulatedMs ?? 0);
     const completedAt = old.completedAt ?? null;
@@ -176,10 +199,10 @@ function migrate(legacy: LegacyTask[], at: number): Task[] {
       segments = [{ start: end - banked, end }];
     }
 
-    const { story, name, estimateMs } = parseEntry(old.name ?? "");
+    const { group, name, estimateMs } = parseEntry(old.name ?? "");
     return {
       id: old.id ?? crypto.randomUUID(),
-      story,
+      group,
       name,
       notes: old.notes ?? "",
       estimateMs,
@@ -190,55 +213,94 @@ function migrate(legacy: LegacyTask[], at: number): Task[] {
   });
 }
 
-function load(): Task[] {
+/** v2 called it `story`; nothing else about a task changed. */
+function fromV2(old: V2Task[]): Task[] {
+  return old.map(({ story, ...task }) => ({ ...task, group: story ?? null }));
+}
+
+function readTasks(): Task[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(TASKS_KEY);
     if (raw !== null) {
       const parsed: unknown = JSON.parse(raw);
       return Array.isArray(parsed) ? (parsed as Task[]) : [];
     }
 
-    // First run on v2 — bring v1 across, leaving it in place for a rollback.
-    const legacy = localStorage.getItem(LEGACY_KEY);
-    if (legacy === null) return [];
-    const parsed: unknown = JSON.parse(legacy);
-    return Array.isArray(parsed)
-      ? migrate(parsed as LegacyTask[], Date.now())
-      : [];
+    // Each older key is read once and left in place, so a rollback still works.
+    const v2 = localStorage.getItem(V2_KEY);
+    if (v2 !== null) {
+      const parsed: unknown = JSON.parse(v2);
+      return Array.isArray(parsed) ? fromV2(parsed as V2Task[]) : [];
+    }
+
+    const v1 = localStorage.getItem(V1_KEY);
+    if (v1 === null) return [];
+    const parsed: unknown = JSON.parse(v1);
+    return Array.isArray(parsed) ? fromV1(parsed as V1Task[], Date.now()) : [];
   } catch {
     return [];
   }
+}
+
+function readGroups(): Groups {
+  try {
+    const raw = localStorage.getItem(GROUPS_KEY);
+    if (raw === null) return {};
+    const parsed: unknown = JSON.parse(raw);
+    return parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as Groups)
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+/** What a group carries, with the blanks filled in. */
+export function groupMeta(groups: Groups, name: string): Group {
+  return groups[name] ?? EMPTY_GROUP;
 }
 
 export type TasksApi = ReturnType<typeof useTasks>;
 
 /** Owns the task list: hydrates from localStorage, persists on every change. */
 export function useTasks() {
-  const [tasks, setTasks] = useState<Task[]>(load);
+  const [tasks, setTasks] = useState<Task[]>(readTasks);
+  const [groups, setGroups] = useState<Groups>(readGroups);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+    localStorage.setItem(TASKS_KEY, JSON.stringify(tasks));
   }, [tasks]);
+
+  useEffect(() => {
+    localStorage.setItem(GROUPS_KEY, JSON.stringify(groups));
+  }, [groups]);
 
   const update = (id: string, change: (task: Task) => Task) =>
     setTasks((current) => current.map((t) => (t.id === id ? change(t) : t)));
 
+  const editGroup = (name: string, change: (group: Group) => Group) =>
+    setGroups((current) => ({
+      ...current,
+      [name]: change(current[name] ?? EMPTY_GROUP),
+    }));
+
   return {
     tasks,
+    groups,
 
     /**
      * Idle, in the order typed — you often line a few up before starting any.
-     * `story` is whatever the composer's picker has selected; a key typed into
+     * `group` is whatever the composer's picker has selected; a key typed into
      * the text itself is more explicit, so it wins.
      */
-    add(text: string, story: string | null = null) {
+    add(text: string, group: string | null = null) {
       const entry = parseEntry(text);
       const { name, estimateMs } = entry;
       setTasks((current) => [
         ...current,
         {
           id: crypto.randomUUID(),
-          story: entry.story ?? story,
+          group: entry.group ?? group,
           name,
           notes: "",
           estimateMs,
@@ -250,25 +312,39 @@ export function useTasks() {
     },
 
     /**
-     * Typing `TEMPO-51 ` in front of a name moves the task to that story. Typing
-     * no key leaves the story alone — only the group header can clear one.
+     * Typing `TEMPO-51 ` in front of a name moves the task to that group. Typing
+     * no key leaves the group alone — only the group header can clear one.
      */
     rename: (id: string, text: string) =>
       update(id, (t) => {
-        const key = STORY_KEY.exec(text);
+        const key = GROUP_KEY.exec(text);
         if (key === null) return { ...t, name: text };
         return {
           ...t,
-          story: key[1].toUpperCase(),
+          group: key[1].toUpperCase(),
           name: text.slice(key[0].length),
         };
       }),
 
-    /** Rewrites every member at once; `null` drops them back to no story. */
-    renameStory: (from: string, to: string | null) =>
+    /** Rewrites every member at once; `null` drops them back to no group. */
+    renameGroup: (from: string, to: string | null) => {
       setTasks((current) =>
-        current.map((t) => (t.story === from ? { ...t, story: to } : t)),
-      ),
+        current.map((t) => (t.group === from ? { ...t, group: to } : t)),
+      );
+      // The estimate and notes belong to the name, so they move with it.
+      setGroups((current) => {
+        const { [from]: meta, ...rest } = current;
+        if (meta === undefined) return current;
+        if (to === null) return rest;
+        return { ...rest, [to]: { ...(current[to] ?? EMPTY_GROUP), ...meta } };
+      });
+    },
+
+    setGroupEstimate: (name: string, estimateMs: number | null) =>
+      editGroup(name, (g) => ({ ...g, estimateMs })),
+
+    setGroupNotes: (name: string, notes: string) =>
+      editGroup(name, (g) => ({ ...g, notes })),
 
     setNotes: (id: string, notes: string) =>
       update(id, (t) => ({ ...t, notes })),

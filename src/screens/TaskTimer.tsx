@@ -2,14 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Timer } from "lucide-react";
 import { Composer } from "../components/Composer";
 import { NowPanel } from "../components/NowPanel";
-import { StoryGroup } from "../components/StoryGroup";
 import { TaskCard } from "../components/TaskCard";
+import { TaskGroup } from "../components/TaskGroup";
 import {
   elapsedBetween,
+  groupTone,
   isQueued,
-  knownStories,
+  knownGroups,
   parseEntry,
-  storyTone,
   taskStatus,
   touchesDay,
   useTasks,
@@ -27,8 +27,8 @@ export function TaskTimer() {
   const api = useTasks();
   const [showDone, setShowDone] = useState(true);
   /** Where the composer files new tasks; sticky, so a run of them stays together. */
-  const [composerStory, setComposerStory] = useState<string | null>(null);
-  /** Group under the pointer, in the bar or the list — they highlight together. */
+  const [composerGroup, setComposerGroup] = useState<string | null>(null);
+  /** Block under the pointer, in the bar or the list — they highlight together. */
   const [pointed, setPointed] = useState<string | null>(null);
   /** 0 is today; every step back is one more day of history. */
   const [dayOffset, setDayOffset] = useState(0);
@@ -74,15 +74,15 @@ export function TaskTimer() {
   }, []);
 
   function addTask(text: string) {
-    api.add(text, composerStory);
+    api.add(text, composerGroup);
     // A key typed into the text wins, so move the picker with it rather than
     // leaving the chip claiming something that isn't true.
-    const typed = parseEntry(text).story;
-    if (typed !== null) setComposerStory(typed);
+    const typed = parseEntry(text).group;
+    if (typed !== null) setComposerGroup(typed);
   }
 
-  function addTo(story: string) {
-    setComposerStory(story);
+  function addTo(group: string) {
+    setComposerGroup(group);
     setDayOffset(0);
     composer.current?.focus();
   }
@@ -137,7 +137,7 @@ export function TaskTimer() {
       </header>
 
       <Split
-        groups={groupTasks(visible)}
+        blocks={blockTasks(visible)}
         now={now}
         from={from}
         to={to}
@@ -152,9 +152,9 @@ export function TaskTimer() {
 
       {isToday && (
         <Composer
-          stories={knownStories(api.tasks)}
-          story={composerStory}
-          onStory={setComposerStory}
+          groups={knownGroups(api.tasks)}
+          group={composerGroup}
+          onGroup={setComposerGroup}
           onAdd={addTask}
           inputRef={composer}
         />
@@ -167,8 +167,8 @@ export function TaskTimer() {
             <>
               <p>Add a task to get started.</p>
               <p className="timer__empty-sub">
-                Leave it on <em>No story</em> for a standalone task, or pick one
-                to group it.
+                Leave the picker on <em>No group</em> for a task on its own, or
+                choose a group to file it under.
               </p>
             </>
           ) : (
@@ -183,30 +183,30 @@ export function TaskTimer() {
       ) : (
         <>
           <section className="timer__list">
-            {groupTasks(active).map((group) =>
-              group.story === null ? (
+            {blockTasks(active).map((block) =>
+              block.group === null ? (
                 <TaskCard
-                  key={group.key}
-                  task={group.tasks[0]}
+                  key={block.key}
+                  task={block.tasks[0]}
                   now={now}
                   from={from}
                   to={to}
                   api={api}
-                  marked={pointed === group.key}
-                  pointKey={group.key}
+                  marked={pointed === block.key}
+                  pointKey={block.key}
                   onPoint={setPointed}
                   readOnly={!isToday}
                 />
               ) : (
-                <StoryGroup
-                  key={group.key}
-                  story={group.story}
-                  tasks={group.tasks}
+                <TaskGroup
+                  key={block.key}
+                  group={block.group}
+                  tasks={block.tasks}
                   now={now}
                   from={from}
                   to={to}
                   api={api}
-                  marked={pointed === group.key}
+                  marked={pointed === block.key}
                   onPoint={setPointed}
                   onAddTo={addTo}
                   readOnly={!isToday}
@@ -230,22 +230,40 @@ export function TaskTimer() {
                 Done
                 <span className="timer__count">{done.length}</span>
               </button>
+
+              {/* Grouped the same as the ongoing list, but compact — the real
+                  header is up there, this one just keeps its tasks together. */}
               {showDone &&
-                done.map((task) => (
-                  <TaskCard
-                    key={task.id}
-                    task={task}
-                    now={now}
-                    from={from}
-                    to={to}
-                    api={api}
-                    marked={pointed === (task.story ?? task.id)}
-                    pointKey={task.story ?? task.id}
-                    onPoint={setPointed}
-                    readOnly={!isToday}
-                    showStory
-                  />
-                ))}
+                blockTasks(done).map((block) =>
+                  block.group === null ? (
+                    <TaskCard
+                      key={block.key}
+                      task={block.tasks[0]}
+                      now={now}
+                      from={from}
+                      to={to}
+                      api={api}
+                      marked={pointed === block.key}
+                      pointKey={block.key}
+                      onPoint={setPointed}
+                      readOnly={!isToday}
+                    />
+                  ) : (
+                    <TaskGroup
+                      key={block.key}
+                      group={block.group}
+                      tasks={block.tasks}
+                      now={now}
+                      from={from}
+                      to={to}
+                      api={api}
+                      marked={pointed === block.key}
+                      onPoint={setPointed}
+                      readOnly={!isToday}
+                      compact
+                    />
+                  ),
+                )}
             </section>
           )}
         </>
@@ -254,49 +272,49 @@ export function TaskTimer() {
   );
 }
 
-/** How many segments get their own slice before the tail is pooled. */
+/** How many blocks get their own slice before the tail is pooled. */
 const SEGMENTS = 6;
 
-interface Group {
+interface Block {
   /** What the bar and the list point at together. */
   key: string;
-  story: string | null;
+  group: string | null;
   tasks: Task[];
 }
 
 /**
- * Story blocks and lone tasks, in the order the tasks were typed. Deliberately
+ * Group blocks and lone tasks, in the order the tasks were typed. Deliberately
  * not sorted by time — rows reshuffling under you as the day moves is horrible.
  */
-function groupTasks(tasks: Task[]): Group[] {
-  const groups: Group[] = [];
-  const byStory = new Map<string, Group>();
+function blockTasks(tasks: Task[]): Block[] {
+  const blocks: Block[] = [];
+  const byGroup = new Map<string, Block>();
 
   for (const task of tasks) {
-    if (task.story === null) {
-      groups.push({ key: task.id, story: null, tasks: [task] });
+    if (task.group === null) {
+      blocks.push({ key: task.id, group: null, tasks: [task] });
       continue;
     }
-    const existing = byStory.get(task.story);
+    const existing = byGroup.get(task.group);
     if (existing !== undefined) {
       existing.tasks.push(task);
       continue;
     }
-    const group: Group = { key: task.story, story: task.story, tasks: [task] };
-    byStory.set(task.story, group);
-    groups.push(group);
+    const block: Block = { key: task.group, group: task.group, tasks: [task] };
+    byGroup.set(task.group, block);
+    blocks.push(block);
   }
 
-  return groups;
+  return blocks;
 }
 
 /**
- * Where the day went — one bar, one slice per story, biggest brightest.
+ * Where the day went — one bar, one slice per group, biggest brightest.
  * Pointing at a slice lights its block (and the reverse), which is how you tell
  * the slices apart.
  */
 function Split({
-  groups,
+  blocks,
   now,
   from,
   to,
@@ -304,7 +322,7 @@ function Split({
   pointed,
   onPoint,
 }: {
-  groups: Group[];
+  blocks: Block[];
   now: number;
   from: number;
   to: number;
@@ -314,14 +332,14 @@ function Split({
 }) {
   if (total <= 0) return null;
 
-  const ranked = groups
-    .map((group) => ({
-      group,
-      ms: group.tasks.reduce(
+  const ranked = blocks
+    .map((block) => ({
+      block,
+      ms: block.tasks.reduce(
         (sum, t) => sum + elapsedBetween(t, from, to, now),
         0,
       ),
-      live: group.tasks.some((t) => taskStatus(t) === "running"),
+      live: block.tasks.some((t) => taskStatus(t) === "running"),
     }))
     .filter((slice) => slice.ms > 0)
     .sort((a, b) => b.ms - a.ms);
@@ -330,20 +348,20 @@ function Split({
 
   return (
     <div className="split" onMouseLeave={() => onPoint(null)}>
-      {ranked.slice(0, SEGMENTS).map(({ group, ms, live }, i) => (
+      {ranked.slice(0, SEGMENTS).map(({ block, ms, live }, i) => (
         <span
-          key={group.key}
+          key={block.key}
           className={`split__seg${live ? " is-live" : ""}${
-            pointed === group.key ? " is-pointed" : ""
+            pointed === block.key ? " is-pointed" : ""
           }`}
           style={{
             flexGrow: ms,
             background:
-              group.story === null
+              block.group === null
                 ? undefined
-                : `var(--story-${storyTone(group.story)})`,
+                : `var(--group-${groupTone(block.group)})`,
             opacity:
-              pointed === group.key
+              pointed === block.key
                 ? 1
                 : pointed !== null
                   ? 0.12
@@ -351,8 +369,8 @@ function Split({
                     ? 1
                     : 0.7 - i * 0.1,
           }}
-          title={`${group.story ?? group.tasks[0].name} · ${formatDurationShort(ms)}`}
-          onMouseEnter={() => onPoint(group.key)}
+          title={`${block.group ?? block.tasks[0].name} · ${formatDurationShort(ms)}`}
+          onMouseEnter={() => onPoint(block.key)}
         />
       ))}
       {tail > 0 && (

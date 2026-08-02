@@ -11,7 +11,6 @@ import {
 import {
   elapsedBetween,
   elapsedMs,
-  storyTone,
   taskStatus,
   type Task,
   type TasksApi,
@@ -31,13 +30,11 @@ interface TaskCardProps {
   api: TasksApi;
   /** This task's slice of the split bar is under the pointer. */
   marked: boolean;
-  /** What the bar and the list agree to point at: a story, or this task. */
+  /** What the bar and the list agree to point at: a group, or this task. */
   pointKey: string;
   onPoint: (key: string | null) => void;
   /** A past day is a record, not a workspace. */
   readOnly?: boolean;
-  /** Outside a story block the key has to ride on the row itself. */
-  showStory?: boolean;
 }
 
 export function TaskCard({
@@ -50,7 +47,6 @@ export function TaskCard({
   pointKey,
   onPoint,
   readOnly = false,
-  showStory = false,
 }: TaskCardProps) {
   const status = taskStatus(task);
   const [showNotes, setShowNotes] = useState(false);
@@ -125,14 +121,6 @@ export function TaskCard({
           </button>
         )}
 
-        {showStory && task.story !== null && (
-          <span
-            className="task__story"
-            style={{ color: `var(--story-${storyTone(task.story)})` }}
-          >
-            {task.story}
-          </span>
-        )}
 
         <input
           className="task__name"
