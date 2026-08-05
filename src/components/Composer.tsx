@@ -11,7 +11,7 @@ import { groupTone, normalizeGroup } from "../lib/tasks";
 const HOTKEY = navigator.userAgent.includes("Mac") ? "⌘K" : "Ctrl K";
 
 interface ComposerProps {
-  /** Groups already in use, most recently touched first. */
+  /** The day's groups, the one you touched most recently first. */
   groups: string[];
   /** What new tasks get filed under; `null` means a task on its own. */
   group: string | null;

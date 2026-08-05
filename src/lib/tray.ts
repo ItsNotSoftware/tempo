@@ -17,7 +17,7 @@ import {
   type Task,
   type TasksApi,
 } from "./tasks";
-import { formatDuration, formatDurationShort, formatTimeOfDay } from "./time";
+import { formatClock, formatDurationShort, formatTimeOfDay } from "./time";
 
 /** How many idle tasks the Start submenu offers before it gets unwieldy. */
 const STARTABLE = 12;
@@ -64,15 +64,17 @@ export function useTray(api: TasksApi, now: number, from: number, to: number) {
     0,
   );
 
-  // Ticks with the clock. Cheap, and the only part that has to be to the second.
+  // `HH:MM` — a seconds digit in the menu bar is just twitch in the corner of
+  // your eye. Keying the effect on the rendered strings means the whole tray
+  // now settles for a minute at a time.
+  const clock = current === null ? null : formatClock(elapsed);
+  const tooltip = current === null ? "Tempo" : `${label(current)} · ${clock}`;
+
   useEffect(() => {
     if (tray === null) return;
-    const clock = current === null ? null : formatDuration(elapsed);
     void tray.setTitle(clock);
-    void tray.setTooltip(
-      current === null ? "Tempo" : `${label(current)} · ${clock}`,
-    );
-  }, [tray, current?.id, elapsed]);
+    void tray.setTooltip(tooltip);
+  }, [tray, clock, tooltip]);
 
   const startable = api.tasks
     .filter(
@@ -81,8 +83,8 @@ export function useTray(api: TasksApi, now: number, from: number, to: number) {
     .slice(0, STARTABLE);
 
   // Rebuilding the whole menu every second would be waste, so it only happens
-  // when something in it would actually read differently. Its durations are
-  // minute-grained — the seconds live in the title, which is free to update.
+  // when something in it would actually read differently — which, like the
+  // title, is once a minute.
   const shape = [
     current?.id ?? "",
     Math.floor(elapsed / 60_000),

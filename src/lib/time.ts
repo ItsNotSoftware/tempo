@@ -64,6 +64,11 @@ export function splitClock(ms: number): [string, string] {
   return [clock.slice(0, split), clock.slice(split)];
 }
 
+/** `HH:MM` — for the menu bar, where a seconds digit is just twitch. */
+export function formatClock(ms: number): string {
+  return splitClock(ms)[0];
+}
+
 /** Wall-clock `14:02`, in whatever form the user's locale writes it. */
 export function formatTimeOfDay(ts: number): string {
   return new Date(ts).toLocaleTimeString([], {

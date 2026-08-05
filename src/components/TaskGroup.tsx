@@ -1,11 +1,12 @@
-import { useState } from "react";
-import { ChevronRight, Gauge, Plus, StickyNote } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ChevronRight, Gauge, Plus, StickyNote, Trash2 } from "lucide-react";
 import { TaskCard } from "./TaskCard";
 import {
   elapsedBetween,
   groupMeta,
   groupTone,
   normalizeGroup,
+  taskCount,
   type Task,
   type TasksApi,
 } from "../lib/tasks";
@@ -31,6 +32,8 @@ interface TaskGroupProps {
   onPoint: (key: string | null) => void;
   /** Aims the composer at this group and focuses it. */
   onAddTo?: (group: string) => void;
+  /** Throws these tasks away, and unpoints the composer's chip if it was here. */
+  onDelete?: (group: string, ids: string[]) => void;
   /** A past day is a record, not a workspace. */
   readOnly?: boolean;
   /**
@@ -51,6 +54,7 @@ export function TaskGroup({
   marked,
   onPoint,
   onAddTo,
+  onDelete,
   readOnly = false,
   compact = false,
 }: TaskGroupProps) {
@@ -59,6 +63,14 @@ export function TaskGroup({
   const [draft, setDraft] = useState<string | null>(null);
   const [showNotes, setShowNotes] = useState(false);
   const [editEstimate, setEditEstimate] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  // Reset the delete confirmation if the user moves on without answering.
+  useEffect(() => {
+    if (!confirmDelete) return;
+    const timer = setTimeout(() => setConfirmDelete(false), 4000);
+    return () => clearTimeout(timer);
+  }, [confirmDelete]);
 
   const meta = groupMeta(api.groups, group);
   const spent = tasks.reduce(
@@ -155,9 +167,7 @@ export function TaskGroup({
           </span>
         )}
 
-        <span className="group__count">
-          {tasks.length} task{tasks.length > 1 ? "s" : ""}
-        </span>
+        <span className="group__count">{taskCount(tasks.length)}</span>
 
         {editable && (
           <div className="group__actions">
@@ -186,6 +196,30 @@ export function TaskGroup({
               onClick={() => setShowNotes((open) => !open)}
             >
               <StickyNote size={16} />
+            </button>
+            {/* Clearing the name only ungroups; this is the one that takes the
+                day's tasks with it, so arming spells out how many. */}
+            <button
+              className={`icon-btn icon-btn--sm icon-btn--danger${
+                confirmDelete ? " is-armed" : ""
+              }`}
+              title={
+                confirmDelete
+                  ? `Click again to delete ${group} and today's ${taskCount(tasks.length)}`
+                  : `Delete ${group} and its tasks`
+              }
+              aria-label={confirmDelete ? "Confirm delete" : "Delete group"}
+              onClick={() =>
+                confirmDelete
+                  ? onDelete?.(
+                      group,
+                      tasks.map((t) => t.id),
+                    )
+                  : setConfirmDelete(true)
+              }
+            >
+              <Trash2 size={confirmDelete ? 14 : 16} />
+              {confirmDelete && `Delete ${taskCount(tasks.length)}?`}
             </button>
           </div>
         )}

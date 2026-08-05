@@ -661,7 +661,7 @@
   gap: 1px;
   flex-shrink: 0;
   /* Reserved so revealing them doesn't shove the roll-up sideways. */
-  min-width: 84px;
+  min-width: 111px;
 }
 
 .group__actions > button {
@@ -671,7 +671,8 @@
 
 .group:hover .group__actions > button,
 .group:focus-within .group__actions > button,
-.group__actions > button.is-on {
+.group__actions > button.is-on,
+.group__actions > button.is-armed {
   opacity: 1;
 }
 

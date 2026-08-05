@@ -241,3 +241,11 @@ textarea {
   height: 26px;
   border-radius: 7px;
 }
+
+/* Armed at this size the words still have to fit the header's own scale. */
+.icon-btn--sm.is-armed,
+.icon-btn--sm.is-armed:hover {
+  gap: 5px;
+  padding: 0 9px 0 7px;
+  font-size: 13px;
+}

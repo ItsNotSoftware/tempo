@@ -77,7 +77,16 @@ export function parseEntry(text: string): Entry {
   return { group, name, estimateMs };
 }
 
-/** Every group in use, the one you touched most recently first. */
+/** `1 task` / `3 tasks` — said in a few places, always the same way. */
+export function taskCount(n: number): string {
+  return `${n} task${n === 1 ? "" : "s"}`;
+}
+
+/**
+ * The groups among these tasks, the one you touched most recently first. Fed
+ * the day in view, so the picker is only ever as long as the day itself — last
+ * week's groups aren't choices, they're history.
+ */
 export function knownGroups(tasks: Task[]): string[] {
   const latest = new Map<string, number>();
   for (const task of tasks) {
@@ -337,6 +346,22 @@ export function useTasks() {
         if (meta === undefined) return current;
         if (to === null) return rest;
         return { ...rest, [to]: { ...(current[to] ?? EMPTY_GROUP), ...meta } };
+      });
+    },
+
+    /**
+     * Throws a group away with the tasks under it. `ids` is the block on screen,
+     * never the whole name: an earlier day is a record and deleting from today
+     * must not rewrite it. The metadata is keyed by the name, so it only goes
+     * once no task carries it.
+     */
+    removeGroup: (name: string, ids: string[]) => {
+      const gone = new Set(ids);
+      setTasks((current) => current.filter((t) => !gone.has(t.id)));
+      if (tasks.some((t) => t.group === name && !gone.has(t.id))) return;
+      setGroups((current) => {
+        const { [name]: dropped, ...rest } = current;
+        return dropped === undefined ? current : rest;
       });
     },
 

@@ -89,6 +89,13 @@ export function TaskTimer() {
     if (typed !== null) setComposerGroup(typed);
   }
 
+  function dropGroup(group: string, ids: string[]) {
+    api.removeGroup(group, ids);
+    // Nothing on the day carries the name now, so the chip can't either — the
+    // picker is the day's groups, and this one just left it.
+    if (composerGroup === group) setComposerGroup(null);
+  }
+
   function addTo(group: string) {
     setComposerGroup(group);
     setDayOffset(0);
@@ -160,7 +167,7 @@ export function TaskTimer() {
 
       {isToday && (
         <Composer
-          groups={knownGroups(api.tasks)}
+          groups={knownGroups(visible)}
           group={composerGroup}
           onGroup={setComposerGroup}
           onAdd={addTask}
@@ -217,6 +224,7 @@ export function TaskTimer() {
                   marked={pointed === block.key}
                   onPoint={setPointed}
                   onAddTo={addTo}
+                  onDelete={dropGroup}
                   readOnly={!isToday}
                 />
               ),
