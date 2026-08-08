@@ -223,7 +223,7 @@ export function TaskTimer({ api, now, day, onDay, composer }: TaskTimerProps) {
                 onClick={() => setShowDone((open) => !open)}
               >
                 <ChevronRight
-                  className={`timer__chevron${showDone ? " is-open" : ""}`}
+                  className={`chevron${showDone ? " is-open" : ""}`}
                   size={15}
                   strokeWidth={2.5}
                 />

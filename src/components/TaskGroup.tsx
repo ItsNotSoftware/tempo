@@ -11,6 +11,7 @@ import {
   type TasksApi,
 } from "../lib/tasks";
 import { formatDurationShort, parseEstimate } from "../lib/time";
+import "./TaskGroup.css";
 
 /**
  * Room for a real name without letting one push the roll-up off the row. The
@@ -121,14 +122,14 @@ export function TaskGroup({
           onClick={() => setCollapsed((shut) => !shut)}
         >
           <ChevronRight
-            className={`timer__chevron${collapsed ? "" : " is-open"}`}
+            className={`chevron${collapsed ? "" : " is-open"}`}
             size={14}
             strokeWidth={2.5}
           />
         </button>
 
         <i
-          className="group__dot"
+          className="dot"
           style={{ background: `var(--group-${groupTone(group)})` }}
         />
 
@@ -228,7 +229,7 @@ export function TaskGroup({
 
         {editEstimate ? (
           <input
-            className="task__estimate-field"
+            className="estimate-field"
             defaultValue={own === null ? "" : formatDurationShort(own)}
             placeholder="4h"
             aria-label="Group estimate"

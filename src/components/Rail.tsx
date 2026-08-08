@@ -1,5 +1,6 @@
 import { NotebookPen, Timer } from "lucide-react";
 import { Mark } from "./Mark";
+import "./Rail.css";
 
 export type Screen = "timer" | "notes";
 

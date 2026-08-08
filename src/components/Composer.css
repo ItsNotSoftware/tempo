@@ -1,0 +1,206 @@
+.composer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  margin-bottom: 22px;
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  background: var(--bg-elevated);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.composer:focus-within {
+  border-color: var(--accent-line);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.composer > input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: none;
+  padding: 9px 0;
+}
+
+.composer > input:focus {
+  outline: none;
+}
+
+.composer > input::placeholder {
+  color: var(--text-faint);
+}
+
+/* --- Group picker --- */
+
+.composer__picker {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* Says where the next task lands before you type it — this is the whole point. */
+.composer__group {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 8px 0 11px;
+  border-radius: 10px;
+  font-size: 14.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  transition:
+    background 0.13s ease,
+    color 0.13s ease;
+}
+
+.composer__group:hover,
+.composer__group.is-open {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.composer__divider {
+  width: 1px;
+  height: 21px;
+  flex-shrink: 0;
+  background: var(--border);
+}
+
+.composer__menu {
+  position: absolute;
+  top: calc(100% + 9px);
+  left: 0;
+  z-index: 10;
+  min-width: 235px;
+  padding: 5px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow);
+  animation: menu-in 0.13s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+}
+
+.composer__option {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: 8px;
+  font-size: 15px;
+  color: var(--text-muted);
+  text-align: left;
+  transition:
+    background 0.1s ease,
+    color 0.1s ease;
+}
+
+.composer__option:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.composer__option.is-on {
+  color: var(--accent);
+}
+
+/* Long names get an ellipsis rather than shoving the task field off the row. */
+.composer__label {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer__note {
+  margin-left: auto;
+  font-size: 12.5px;
+  color: var(--text-faint);
+}
+
+.composer__rule {
+  height: 1px;
+  margin: 5px 4px;
+  background: var(--border);
+}
+
+.composer__new {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  font-family: var(--mono);
+  font-size: 14px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.composer__new:focus {
+  outline: none;
+  border-color: var(--accent-line);
+}
+
+.composer__new::placeholder {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 14.5px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-faint);
+}
+
+.composer__hint {
+  flex-shrink: 0;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--text-faint);
+  transition: opacity 0.15s ease;
+}
+
+.composer:focus-within .composer__hint {
+  opacity: 0;
+}
+
+/* Direct child only — the picker and its menu are buttons in here too. */
+.composer > button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  height: 40px;
+  padding: 0 16px 0 13px;
+  border-radius: 11px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 16px;
+  font-weight: 500;
+  transition:
+    opacity 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.composer > button:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.composer > button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}

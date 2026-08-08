@@ -252,7 +252,7 @@ function Tracked({
       {knownGroups(tasks).map((group) => (
         <i
           key={group}
-          className="page__dot"
+          className="dot dot--sm"
           style={{ background: `var(--group-${groupTone(group)})` }}
         />
       ))}

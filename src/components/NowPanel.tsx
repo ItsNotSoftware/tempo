@@ -7,6 +7,7 @@ import {
   type TasksApi,
 } from "../lib/tasks";
 import { formatTimeOfDay, splitClock } from "../lib/time";
+import "./NowPanel.css";
 
 interface NowPanelProps {
   task: Task;

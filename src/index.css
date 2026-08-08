@@ -108,43 +108,6 @@ textarea {
   zoom: 1.15;
 }
 
-/* The window keeps its native title bar, so the mark lives up here rather than
-   in a second one of our own. */
-.rail {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
-  width: 48px;
-  padding: 12px 0;
-  border-right: 1px solid var(--border);
-  background: var(--bg-elevated);
-}
-
-.rail__mark {
-  display: flex;
-  margin-bottom: 12px;
-  color: var(--text-faint);
-}
-
-.rail .icon-btn {
-  position: relative;
-}
-
-.rail .icon-btn.is-on {
-  background: var(--accent-soft);
-}
-
-/* The same dot the now panel wears, tucked into the corner of the icon. */
-.rail__live {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  width: 6px;
-  height: 6px;
-}
-
 .app__content {
   flex: 1;
   min-width: 0;
@@ -233,6 +196,53 @@ textarea {
 .btn--success:hover {
   background: var(--success);
   color: var(--bg);
+}
+
+/* --- Small shared pieces --- */
+
+/* A group's colour, as a dot. Wherever a group is named, this stands in for it —
+   the header, the composer's chip and its menu, a day's roll-up in the notebook.
+   The hue is always set inline from `groupTone`. */
+.dot {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: 50%;
+}
+
+.dot--sm {
+  width: 6px;
+  height: 6px;
+}
+
+/* Points right when shut, down when open. Used by anything that collapses. */
+.chevron {
+  transition: transform 0.16s ease;
+}
+
+.chevron.is-open {
+  transform: rotate(90deg);
+}
+
+/* The `45m` / `1h 30m` field, on a task and on a group alike. */
+.estimate-field {
+  /* Wide enough for `1h 30m` once padding and border take their cut. */
+  width: 10ch;
+  padding: 3px 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  background: var(--bg);
+  font-family: var(--mono);
+  font-size: 13.5px;
+}
+
+.estimate-field:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.estimate-field::placeholder {
+  color: var(--text-faint);
 }
 
 /* --- Pulse dot --- */

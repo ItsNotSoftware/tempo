@@ -184,12 +184,6 @@
   color: var(--text-muted);
 }
 
-.page__dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-}
-
 .page__count {
   margin-left: 1px;
 }

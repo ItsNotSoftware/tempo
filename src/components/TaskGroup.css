@@ -1,0 +1,229 @@
+.group {
+  padding: 2px 0 5px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.group.is-marked {
+  background: rgba(255, 255, 255, 0.022);
+  border-color: var(--border);
+}
+
+.group__head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  /* Right padding clears the rows' action column (11 + 139 + 10) so the
+     roll-up lands directly above the times it adds up. */
+  padding: 4px 160px 4px 5px;
+}
+
+.group__collapse {
+  display: grid;
+  place-items: center;
+  width: 23px;
+  height: 23px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  color: var(--text-faint);
+  transition:
+    background 0.13s ease,
+    color 0.13s ease;
+}
+
+.group__collapse:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+/* Renaming here moves every task under it, so it stays a real input. Its width
+   is set inline from the character count — the font is monospace, so `ch` is
+   exact and a long name like `Workouts` gets the room it needs. */
+.group__name {
+  /* Its width is set inline to fit the name; flex must not claw it back. */
+  flex-shrink: 0;
+  min-width: 0;
+  padding: 3px 7px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: none;
+  font-family: var(--mono);
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+  text-overflow: ellipsis;
+}
+
+.group__name:hover {
+  background: var(--surface-hover);
+}
+
+.group__name:focus {
+  outline: none;
+  background: var(--bg);
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.group__name--static {
+  flex-shrink: 0;
+  max-width: 23ch;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.group__name[readonly] {
+  cursor: default;
+}
+
+.group__name[readonly]:hover {
+  background: none;
+}
+
+.group__count {
+  font-size: 12.5px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+/* Quiet until the block is touched, like the row actions. */
+.group__actions {
+  display: flex;
+  gap: 1px;
+  flex-shrink: 0;
+  /* Reserved so revealing them doesn't shove the roll-up sideways. */
+  min-width: 111px;
+}
+
+.group__actions > button {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.group:hover .group__actions > button,
+.group:focus-within .group__actions > button,
+.group__actions > button.is-on,
+.group__actions > button.is-armed {
+  opacity: 1;
+}
+
+.group__total {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 13.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.group__estimate {
+  font-family: var(--mono);
+  font-size: 13.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.group__estimate.is-over {
+  color: var(--warn);
+}
+
+/* Same reading as a row's: accent under, amber closing in, red past it. */
+.group__budget {
+  height: 2px;
+  margin: 3px 160px 6px 50px;
+  border-radius: 99px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.group__budget > i {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+  background: var(--accent);
+  transition: width 0.3s ease;
+}
+
+.group__budget.is-near > i {
+  background: var(--warn);
+}
+
+.group__budget.is-over > i {
+  background: var(--danger);
+}
+
+.group__notes {
+  display: block;
+  width: calc(100% - 66px);
+  margin: 4px 0 8px 50px;
+  padding: 10px 13px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg);
+  font-size: 15.5px;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.group__notes::placeholder {
+  color: var(--text-faint);
+}
+
+.group__notes:focus {
+  outline: none;
+  border-color: var(--border-strong);
+}
+
+.group__tasks {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-left: 15px;
+}
+
+/* Inside Done the header is only a label — the real one is in the ongoing list.
+   It sits back with the finished rows it labels, and comes up with them on hover. */
+.group.is-compact .group__head {
+  padding-top: 1px;
+  padding-bottom: 1px;
+  opacity: 0.55;
+  transition: opacity 0.15s ease;
+}
+
+.group.is-compact:hover .group__head,
+.group.is-compact:focus-within .group__head {
+  opacity: 1;
+}
+
+.group.is-compact .group__name--static,
+.group.is-compact .group__count,
+.group.is-compact .group__total {
+  font-size: 12.5px;
+  color: var(--text-faint);
+}
+
+.group.is-compact .dot {
+  width: 6px;
+  height: 6px;
+}
+
+/* In a narrow window, chrome gives its width back to the task names. */
+@media (max-width: 644px) {
+  .group__head {
+    padding-right: 152px;
+  }
+
+  .group__tasks {
+    padding-left: 8px;
+  }
+
+  /* Least important thing in the header — it goes first when room runs out. */
+  .group__count {
+    display: none;
+  }
+}

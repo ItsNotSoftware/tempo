@@ -1,0 +1,304 @@
+.task {
+  position: relative;
+  border-radius: 14px;
+  padding: 11px 11px 11px 12px;
+  border: 1px solid transparent;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.task:hover,
+.task:focus-within {
+  background: var(--surface);
+}
+
+/* Pointing at a bar slice reaches down and marks its row. */
+.task--marked {
+  background: var(--surface);
+  border-color: var(--border-strong);
+}
+
+.task--running {
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+}
+
+.task--running.task--marked {
+  background: rgba(108, 155, 255, 0.17);
+  border-color: var(--accent);
+}
+
+.task--done.task--marked {
+  opacity: 1;
+}
+
+.task--running:hover,
+.task--running:focus-within {
+  background: rgba(108, 155, 255, 0.17);
+}
+
+.task--done {
+  opacity: 0.55;
+}
+
+.task--done:hover,
+.task--done:focus-within {
+  opacity: 1;
+}
+
+.task__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Play / pause / done */
+
+.task__toggle {
+  display: grid;
+  place-items: center;
+  width: 35px;
+  height: 35px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  color: var(--text-muted);
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.task__toggle:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Nudge the play triangle to look optically centred in the circle */
+.task__toggle svg {
+  margin-left: 2px;
+}
+
+.task--running .task__toggle svg,
+.task__toggle--done svg {
+  margin-left: 0;
+}
+
+.task--running .task__toggle {
+  border-color: transparent;
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.task--running .task__toggle:hover {
+  filter: brightness(1.12);
+}
+
+/* Done reads as a tick, and offers the undo once you reach for it */
+
+.task__toggle--done {
+  border-color: transparent;
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.task__toggle--done:hover {
+  border-color: transparent;
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.task__toggle--done > * {
+  grid-area: 1 / 1;
+  transition: opacity 0.13s ease;
+}
+
+.task__toggle--done .swap-hover,
+.task__toggle--done:hover .swap-rest {
+  opacity: 0;
+}
+
+.task__toggle--done:hover .swap-hover {
+  opacity: 1;
+}
+
+/* On a past day the toggle is just a status glyph — nothing to press. */
+.task__toggle--static {
+  border-color: var(--border);
+  color: var(--text-faint);
+}
+
+/* Name */
+
+.task__name {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 9px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: none;
+  font-size: 17px;
+  text-overflow: ellipsis;
+  transition:
+    background 0.13s ease,
+    border-color 0.13s ease;
+}
+
+.task__name:hover {
+  background: var(--surface-hover);
+}
+
+.task__name:focus {
+  outline: none;
+  background: var(--bg);
+  border-color: var(--border-strong);
+}
+
+.task--done .task__name {
+  color: var(--text-muted);
+}
+
+/* On a past day nothing here is editable, so nothing should invite a click. */
+.task__name[readonly] {
+  cursor: default;
+}
+
+.task__name[readonly]:hover {
+  background: none;
+}
+
+/* Elapsed, and the estimate it's measured against */
+
+.task__time {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.task__elapsed {
+  font-family: var(--mono);
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  color: var(--text-faint);
+}
+
+.task--running .task__elapsed {
+  color: var(--accent);
+}
+
+.task__estimate {
+  font-family: var(--mono);
+  font-size: 13.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+}
+
+/* Matches this row's own bar. Roll-ups stay amber — a sum is a softer signal. */
+.task__estimate.is-over {
+  color: var(--danger);
+}
+
+/* Budget hairline: accent under, amber closing in, red past the estimate.
+   Absolute so an estimated row is exactly as tall as one without, and spanning
+   only the name-to-time columns so it reads as this row's, not a rule between rows. */
+.task__budget {
+  position: absolute;
+  left: 57px;
+  right: 160px;
+  bottom: 6px;
+  height: 2px;
+  border-radius: 99px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.task__budget > i {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+  background: var(--accent);
+  transition: width 0.3s ease;
+}
+
+.task__budget.is-near > i {
+  background: var(--warn);
+}
+
+.task__budget.is-over > i {
+  background: var(--danger);
+}
+
+/* Actions — quiet until the row is touched */
+
+.task__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1px;
+  flex-shrink: 0;
+  /* Reserve the full 4-icon width so rows missing one still line up */
+  min-width: 139px;
+}
+
+.task__actions > button {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.task:hover .task__actions > button,
+.task:focus-within .task__actions > button,
+.task__actions > button.is-on,
+.task__actions > button.is-armed {
+  opacity: 1;
+}
+
+/* Notes */
+
+.task__notes {
+  display: block;
+  width: calc(100% - 45px);
+  margin: 9px 0 3px 45px;
+  padding: 11px 13px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg);
+  font-size: 16px;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.task__notes::placeholder {
+  color: var(--text-faint);
+}
+
+.task__notes:focus {
+  outline: none;
+  border-color: var(--border-strong);
+}
+
+/* In a narrow window, chrome gives its width back to the task names. */
+@media (max-width: 644px) {
+  .task {
+    padding: 9px 7px 9px 8px;
+  }
+
+  .task__row {
+    gap: 8px;
+  }
+
+  .task__actions {
+    min-width: 135px;
+  }
+
+  .task__notes {
+    width: calc(100% - 43px);
+    margin-left: 43px;
+  }
+
+  .task__budget {
+    left: 53px;
+    right: 152px;
+  }
+}

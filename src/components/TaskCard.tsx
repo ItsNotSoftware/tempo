@@ -20,6 +20,7 @@ import {
   formatDurationShort,
   parseEstimate,
 } from "../lib/time";
+import "./TaskCard.css";
 
 interface TaskCardProps {
   task: Task;
@@ -149,7 +150,7 @@ export function TaskCard({
 
           {editEstimate ? (
             <input
-              className="task__estimate-field"
+              className="estimate-field"
               defaultValue={
                 task.estimateMs === null
                   ? ""

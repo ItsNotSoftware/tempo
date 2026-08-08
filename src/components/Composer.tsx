@@ -7,6 +7,7 @@ import {
 } from "react";
 import { ChevronDown, Minus, Plus } from "lucide-react";
 import { groupTone, normalizeGroup } from "../lib/tasks";
+import "./Composer.css";
 
 const HOTKEY = navigator.userAgent.includes("Mac") ? "⌘K" : "Ctrl K";
 
@@ -81,7 +82,7 @@ export function Composer({
             <Minus size={13} strokeWidth={3} />
           ) : (
             <i
-              className="group__dot"
+              className="dot"
               style={{ background: `var(--group-${groupTone(group)})` }}
             />
           )}
@@ -112,7 +113,7 @@ export function Composer({
                 onClick={() => pick(key)}
               >
                 <i
-                  className="group__dot"
+                  className="dot"
                   style={{ background: `var(--group-${groupTone(key)})` }}
                 />
                 <span className="composer__label">{key}</span>
