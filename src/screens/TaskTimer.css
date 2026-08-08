@@ -202,7 +202,7 @@
 }
 
 /* In a narrow window, chrome gives its width back to the task names. */
-@media (max-width: 560px) {
+@media (max-width: 644px) {
   .timer {
     padding: 22px 14px 48px;
   }
@@ -248,7 +248,7 @@
 }
 
 /* In a short window the hero gives ground back to the list. */
-@media (max-height: 560px) {
+@media (max-height: 644px) {
   .timer {
     padding-top: 18px;
   }

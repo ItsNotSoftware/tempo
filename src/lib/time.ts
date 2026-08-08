@@ -20,16 +20,21 @@ export function addDays(dayStart: number, days: number): number {
   return day.getTime();
 }
 
-/** `Today` / `Yesterday` / `Fri 1 Aug` for the day nav. */
-export function formatDay(dayStart: number, now: number): string {
-  const back = Math.round((startOfDay(now) - dayStart) / 86_400_000);
-  if (back === 0) return "Today";
-  if (back === 1) return "Yesterday";
+/** `Fri 1 Aug`, with no opinion about how long ago that was. */
+export function formatDate(dayStart: number): string {
   return new Date(dayStart).toLocaleDateString([], {
     weekday: "short",
     day: "numeric",
     month: "short",
   });
+}
+
+/** `Today` / `Yesterday` / `Fri 1 Aug` for the day nav. */
+export function formatDay(dayStart: number, now: number): string {
+  const back = Math.round((startOfDay(now) - dayStart) / 86_400_000);
+  if (back === 0) return "Today";
+  if (back === 1) return "Yesterday";
+  return formatDate(dayStart);
 }
 
 /** `1h 30m`, `45m`, `2h`, `90` — round-trips whatever `formatDurationShort` writes. */

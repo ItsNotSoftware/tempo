@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { isTauri } from "@tauri-apps/api/core";
+import { Image } from "@tauri-apps/api/image";
 import {
   Menu,
   PredefinedMenuItem,
@@ -8,10 +9,13 @@ import {
 } from "@tauri-apps/api/menu";
 import { TrayIcon } from "@tauri-apps/api/tray";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { paint } from "./mark";
 import {
   elapsedBetween,
+  estimates,
   isQueued,
   startedAt,
+  taskLabel,
   taskStatus,
   touchesDay,
   type Task,
@@ -23,6 +27,16 @@ import { formatClock, formatDurationShort, formatTimeOfDay } from "./time";
 const STARTABLE = 12;
 /** Longer labels are cut — a menu as wide as the screen is no use to anyone. */
 const LABEL_CAP = 40;
+
+/**
+ * macOS scales a tray image to 18 points high, so 36 lands exactly on a retina
+ * pixel grid. The 32 the Rust shell bakes in is a 1.78× resample, which is why
+ * it has always looked a little soft.
+ */
+const ICON_PX = 36;
+
+/** What the menu bar is saying, in one word. */
+type Look = "idle" | "running" | "over";
 
 type MenuItems = NonNullable<MenuOptions["items"]>;
 
@@ -76,6 +90,36 @@ export function useTray(api: TasksApi, now: number, from: number, to: number) {
     void tray.setTooltip(tooltip);
   }, [tray, clock, tooltip]);
 
+  // What the title can't say at a glance. Same rule the notification fires on,
+  // so the icon and the alert can't disagree about what "over" means.
+  const over =
+    current !== null &&
+    estimates(current, api.tasks, api.groups, now).some((e) => e.over);
+  const look: Look = current === null ? "idle" : over ? "over" : "running";
+
+  useEffect(() => {
+    if (tray === null) return;
+    let live = true;
+
+    void icon(look)
+      .then((image) => {
+        if (!live) return;
+        // Both at once: setting the image and the template flag separately
+        // shows a coloured glyph getting system-tinted for a frame, or a black
+        // one on a black menu bar.
+        return tray.setIconWithAsTemplate(image, look === "idle");
+      })
+      .catch(() => {
+        // The Rust shell's own icon is already on the tray, so leaving it there
+        // is exactly what the app looked like before any of this.
+      });
+
+    return () => {
+      live = false;
+    };
+    // Three values, so this fires on a real change of state and never on the tick.
+  }, [tray, look]);
+
   const startable = api.tasks
     .filter(
       (t) => (touchesDay(t, from, to) || isQueued(t)) && taskStatus(t) === "idle",
@@ -116,10 +160,54 @@ export function useTray(api: TasksApi, now: number, from: number, to: number) {
   }, [tray, shape]);
 }
 
+/**
+ * At most three icons ever exist. An `Image` is a resource on the Rust side, so
+ * each look is drawn once and kept rather than minted every time the state
+ * changes — and a rejected promise stays in the map, so a failure happens once
+ * and quietly rather than on every transition for the rest of the day.
+ */
+const icons = new Map<Look, Promise<Image>>();
+
+function icon(look: Look): Promise<Image> {
+  const drawn = icons.get(look) ?? draw(look);
+  icons.set(look, drawn);
+  return drawn;
+}
+
+async function draw(look: Look): Promise<Image> {
+  // A template is alpha-only: macOS tints the idle glyph to match the menu bar
+  // itself, so the colour here is only something opaque to carry the shape.
+  const color =
+    look === "idle"
+      ? "#000"
+      : look === "over"
+        ? themeColor("--danger", "#ff6259")
+        : themeColor("--accent", "#6c9bff");
+
+  const ctx = paint(document.createElement("canvas"), color, ICON_PX);
+  if (ctx === null) throw new Error("no 2d context for the tray icon");
+
+  const { data } = ctx.getImageData(0, 0, ICON_PX, ICON_PX);
+  // Canvas hands back un-premultiplied RGBA, which is what Tauri wants. The
+  // view is because `Uint8ClampedArray` isn't in the accepted union.
+  return Image.new(new Uint8Array(data.buffer), ICON_PX, ICON_PX);
+}
+
+/**
+ * Straight off the theme, so the menu bar and the window can't drift apart. The
+ * literal fallback earns its keep: a missing variable would paint the glyph
+ * black, and a black icon on a dark menu bar is an icon that isn't there.
+ */
+function themeColor(name: string, fallback: string): string {
+  const value = getComputedStyle(document.documentElement)
+    .getPropertyValue(name)
+    .trim();
+  return value === "" ? fallback : value;
+}
+
 /** `TEMPO-42 · fix the parser`, cut to something a menu can carry. */
 function label(task: Task): string {
-  const name = task.name.trim() === "" ? "Untitled" : task.name.trim();
-  const full = task.group === null ? name : `${task.group} · ${name}`;
+  const full = taskLabel(task);
   return full.length > LABEL_CAP ? `${full.slice(0, LABEL_CAP - 1)}…` : full;
 }
 

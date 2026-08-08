@@ -1,7 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useState, type RefObject } from "react";
 import { ChevronLeft, ChevronRight, Timer } from "lucide-react";
-import { useEstimateAlerts } from "../lib/alerts";
-import { useTray } from "../lib/tray";
 import { Composer } from "../components/Composer";
 import { NowPanel } from "../components/NowPanel";
 import { TaskCard } from "../components/TaskCard";
@@ -14,8 +12,8 @@ import {
   parseEntry,
   taskStatus,
   touchesDay,
-  useTasks,
   type Task,
+  type TasksApi,
 } from "../lib/tasks";
 import {
   addDays,
@@ -25,31 +23,29 @@ import {
 } from "../lib/time";
 import "./TaskTimer.css";
 
-export function TaskTimer() {
-  const api = useTasks();
+interface TaskTimerProps {
+  api: TasksApi;
+  now: number;
+  /** The day in view, shared with the notebook. Midnight at its start. */
+  day: number;
+  onDay: (dayStart: number) => void;
+  /** Owned by the shell, so ⌘K can reach it from the other screen. */
+  composer: RefObject<HTMLInputElement | null>;
+}
+
+export function TaskTimer({ api, now, day, onDay, composer }: TaskTimerProps) {
   const [showDone, setShowDone] = useState(true);
   /** Where the composer files new tasks; sticky, so a run of them stays together. */
   const [composerGroup, setComposerGroup] = useState<string | null>(null);
   /** Block under the pointer, in the bar or the list — they highlight together. */
   const [pointed, setPointed] = useState<string | null>(null);
-  /** 0 is today; every step back is one more day of history. */
-  const [dayOffset, setDayOffset] = useState(0);
-  const composer = useRef<HTMLInputElement>(null);
 
-  const running = api.tasks.filter((t) => taskStatus(t) === "running");
-  const now = useNow(running.length > 0);
-  const current = running[0] ?? null;
+  const current = api.tasks.find((t) => taskStatus(t) === "running") ?? null;
 
-  // Derived from `now` rather than stored, so the view re-anchors past midnight.
   const today = startOfDay(now);
-  const from = addDays(today, -dayOffset);
-  const to = addDays(from, 1);
-  const isToday = dayOffset === 0;
-
-  // Both live outside the window, so they answer for today whatever day is
-  // being looked at in here.
-  useTray(api, now, today, addDays(today, 1));
-  useEstimateAlerts(api.tasks, api.groups, now);
+  const from = day;
+  const to = addDays(day, 1);
+  const isToday = day === today;
 
   // Today is the workspace, so tasks lined up but never started ride along —
   // the queue must not vanish overnight. A past day is only what happened on it.
@@ -68,19 +64,6 @@ export function TaskTimer() {
   );
   const estimate = visible.reduce((sum, t) => sum + (t.estimateMs ?? 0), 0);
 
-  // ⌘K / Ctrl+K puts the caret in the composer from anywhere.
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        setDayOffset(0);
-        composer.current?.focus();
-      }
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
-
   function addTask(text: string) {
     api.add(text, composerGroup);
     // A key typed into the text wins, so move the picker with it rather than
@@ -98,8 +81,9 @@ export function TaskTimer() {
 
   function addTo(group: string) {
     setComposerGroup(group);
-    setDayOffset(0);
-    composer.current?.focus();
+    onDay(today);
+    // The composer isn't mounted on a past day, so the focus waits a render.
+    requestAnimationFrame(() => composer.current?.focus());
   }
 
   return (
@@ -127,7 +111,7 @@ export function TaskTimer() {
             className="icon-btn"
             title="Previous day"
             aria-label="Previous day"
-            onClick={() => setDayOffset((d) => d + 1)}
+            onClick={() => onDay(addDays(day, -1))}
           >
             <ChevronLeft size={17} />
           </button>
@@ -135,7 +119,7 @@ export function TaskTimer() {
             className="timer__day"
             disabled={isToday}
             title={isToday ? undefined : "Back to today"}
-            onClick={() => setDayOffset(0)}
+            onClick={() => onDay(today)}
           >
             {formatDay(from, now)}
           </button>
@@ -144,7 +128,7 @@ export function TaskTimer() {
             title="Next day"
             aria-label="Next day"
             disabled={isToday}
-            onClick={() => setDayOffset((d) => Math.max(0, d - 1))}
+            onClick={() => onDay(addDays(day, 1))}
           >
             <ChevronRight size={17} />
           </button>
@@ -398,20 +382,4 @@ function Split({
       )}
     </div>
   );
-}
-
-/**
- * Current time. Ticks every second while something is running, and slowly the
- * rest of the time so a window left open overnight still rolls onto the new day.
- */
-function useNow(active: boolean): number {
-  const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    setNow(Date.now());
-    const id = setInterval(() => setNow(Date.now()), active ? 1000 : 60_000);
-    return () => clearInterval(id);
-  }, [active]);
-
-  return now;
 }

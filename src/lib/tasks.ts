@@ -158,6 +158,85 @@ export function isQueued(task: Task): boolean {
   return task.segments.length === 0 && task.completedAt === null;
 }
 
+/** `TEMPO-42 · fix the parser` — what a task is called away from its own row. */
+export function taskLabel(task: Task): string {
+  const name = task.name.trim() === "" ? "Untitled" : task.name.trim();
+  return task.group === null ? name : `${task.group} · ${name}`;
+}
+
+/** A clock measured against an estimate. Without one, nothing is ever over. */
+export interface Estimate {
+  scope: "task" | "group";
+  /** Stable per subject, so an alert can remember having fired for it. */
+  key: string;
+  /** The subject, named the way a person would say it. */
+  subject: string;
+  estimateMs: number | null;
+  spentMs: number;
+  over: boolean;
+}
+
+/**
+ * What the running task is measured against right now: its own estimate, and
+ * its group's when the group carries one of its own. A group without one says
+ * nothing — its expected time is just the sum of its tasks', and those answer
+ * for themselves.
+ *
+ * Estimates read against the total, not the day, same as the row's bar. The
+ * notification fires on this and the tray paints on it, so there is one rule
+ * rather than two that can drift apart.
+ */
+export function estimates(
+  running: Task,
+  tasks: Task[],
+  groups: Groups,
+  now: number,
+): Estimate[] {
+  const measured: Estimate[] = [
+    measure(
+      "task",
+      `task:${running.id}`,
+      taskLabel(running),
+      running.estimateMs,
+      elapsedMs(running, now),
+    ),
+  ];
+
+  if (running.group !== null) {
+    const group = running.group;
+    measured.push(
+      measure(
+        "group",
+        `group:${group}`,
+        group,
+        groupMeta(groups, group).estimateMs,
+        tasks
+          .filter((t) => t.group === group)
+          .reduce((sum, t) => sum + elapsedMs(t, now), 0),
+      ),
+    );
+  }
+
+  return measured;
+}
+
+function measure(
+  scope: Estimate["scope"],
+  key: string,
+  subject: string,
+  estimateMs: number | null,
+  spentMs: number,
+): Estimate {
+  return {
+    scope,
+    key,
+    subject,
+    estimateMs,
+    spentMs,
+    over: estimateMs !== null && spentMs > estimateMs,
+  };
+}
+
 /** Close the open segment, if there is one. */
 function closed(task: Task, at: number): Task {
   const last = task.segments[task.segments.length - 1];

@@ -6,9 +6,9 @@ import {
   sendNotification,
 } from "@tauri-apps/plugin-notification";
 import {
-  elapsedMs,
-  groupMeta,
+  estimates,
   taskStatus,
+  type Estimate,
   type Groups,
   type Task,
 } from "./tasks";
@@ -50,34 +50,10 @@ export function useEstimateAlerts(tasks: Task[], groups: Groups, now: number) {
     const current = tasks.find((t) => taskStatus(t) === "running") ?? null;
     if (current === null || fired.current === null) return;
 
-    // Estimates read against the total, not the day, same as the row's bar.
-    const spent = elapsedMs(current, now);
-    check(
-      fired.current,
-      `task:${current.id}`,
-      current.estimateMs,
-      spent,
-      "Over estimate",
-      taskLabel(current),
-    );
-
-    // Only groups with an estimate of their own. Without one a group's expected
-    // time is just the sum of its tasks' estimates, and those alert on their
-    // own — a group alert there would only say it twice.
-    if (current.group !== null) {
-      const group = current.group;
-      const estimate = groupMeta(groups, group).estimateMs;
-      const groupSpent = tasks
-        .filter((t) => t.group === group)
-        .reduce((sum, t) => sum + elapsedMs(t, now), 0);
-      check(
-        fired.current,
-        `group:${group}`,
-        estimate,
-        groupSpent,
-        "Group over estimate",
-        group,
-      );
+    // The same rule the tray paints on, so the menu bar and the notification
+    // can never disagree about what "over" means.
+    for (const estimate of estimates(current, tasks, groups, now)) {
+      check(fired.current, estimate);
     }
   }, [tasks, groups, now]);
 }
@@ -86,17 +62,10 @@ export function useEstimateAlerts(tasks: Task[], groups: Groups, now: number) {
  * Fire once on the way over, and re-arm on the way back under — so raising an
  * estimate past what's been spent means the new one can alert in its turn.
  */
-function check(
-  fired: Set<string>,
-  key: string,
-  estimateMs: number | null,
-  spent: number,
-  title: string,
-  subject: string,
-) {
-  const over = estimateMs !== null && spent > estimateMs;
+function check(fired: Set<string>, estimate: Estimate) {
+  const { key, spentMs, estimateMs } = estimate;
 
-  if (!over) {
+  if (!estimate.over) {
     if (fired.delete(key)) writeFired(fired);
     return;
   }
@@ -105,8 +74,10 @@ function check(
   fired.add(key);
   writeFired(fired);
   void notify(
-    title,
-    `${subject} — ${formatDurationShort(spent)} of ~${formatDurationShort(estimateMs)}`,
+    estimate.scope === "task" ? "Over estimate" : "Group over estimate",
+    // `over` doesn't narrow the estimate for TypeScript, but it can't be null
+    // here — nothing without an estimate is ever over one.
+    `${estimate.subject} — ${formatDurationShort(spentMs)} of ~${formatDurationShort(estimateMs ?? 0)}`,
   );
 }
 
@@ -119,9 +90,4 @@ async function notify(title: string, body: string) {
   } catch {
     // No notifications available; nothing worth breaking the timer over.
   }
-}
-
-function taskLabel(task: Task): string {
-  const name = task.name.trim() === "" ? "Untitled" : task.name.trim();
-  return task.group === null ? name : `${task.group} · ${name}`;
 }
