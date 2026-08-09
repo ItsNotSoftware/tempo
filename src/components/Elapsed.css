@@ -1,0 +1,109 @@
+.elapsed {
+  display: inline-block;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  /* Fixed to the widest figure it can hold, so the field that replaces it sits
+     in exactly the same place — nothing beside it may shift on a click, or the
+     button you were aiming at moves out from under you mid-gesture. */
+  text-align: center;
+}
+
+/* A row's clock */
+
+.elapsed--sm {
+  width: 9ch;
+  font-size: 16px;
+  letter-spacing: -0.02em;
+  color: var(--text-faint);
+}
+
+.task--running .elapsed--sm {
+  color: var(--accent);
+}
+
+/* The hero clock */
+
+/* `01:17:43` is always eight figures wide, at both sizes. */
+.elapsed--lg {
+  width: 8.2ch;
+  font-size: 40px;
+  font-weight: 250;
+  letter-spacing: -0.045em;
+  line-height: 1;
+  text-align: left;
+}
+
+.elapsed__seconds {
+  color: var(--text-muted);
+}
+
+/* Pressable, but only once you reach for it — every row would otherwise shout
+   about being editable. */
+
+.elapsed--open {
+  padding: 0;
+  border-bottom: 1px dashed transparent;
+  transition:
+    color 0.13s ease,
+    border-color 0.13s ease;
+}
+
+.elapsed--sm.elapsed--open:hover {
+  color: var(--text);
+  border-bottom-color: var(--border-strong);
+}
+
+.task--running .elapsed--sm.elapsed--open:hover {
+  color: var(--accent);
+}
+
+.elapsed--lg.elapsed--open:hover {
+  border-bottom-color: var(--border-strong);
+}
+
+/* Being corrected */
+
+.elapsed__field {
+  border: 1px solid var(--accent);
+  border-radius: 7px;
+  background: var(--bg);
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.elapsed__field:focus {
+  outline: none;
+}
+
+.elapsed__field::placeholder {
+  color: var(--text-faint);
+}
+
+/* Sized to land on the figure it replaces, box and all. */
+.elapsed__field.elapsed--sm {
+  width: 9ch;
+  padding: 0 2px;
+  font-size: 15px;
+  color: var(--text);
+}
+
+.elapsed__field.elapsed--lg {
+  width: 8.9ch;
+  padding: 0 5px;
+  margin: 0 -5px;
+  font-size: 34px;
+  font-weight: 250;
+  letter-spacing: -0.045em;
+  text-align: left;
+}
+
+@media (max-height: 644px) {
+  .elapsed--lg {
+    font-size: 31px;
+  }
+
+  .elapsed__field.elapsed--lg {
+    font-size: 27px;
+  }
+}

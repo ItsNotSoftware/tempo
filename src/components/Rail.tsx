@@ -1,27 +1,33 @@
-import { NotebookPen, Timer } from "lucide-react";
+import { CalendarClock, NotebookPen, Timer } from "lucide-react";
 import { Mark } from "./Mark";
 import "./Rail.css";
 
-export type Screen = "timer" | "notes";
-
-const SCREENS = [
+/** Order is the ⌘-digit order too, so the new screen goes on the end rather
+ *  than moving a shortcut that's already in someone's fingers. */
+export const SCREENS = [
   { id: "timer", label: "Timer", hint: "⌘1", Icon: Timer },
   { id: "notes", label: "Notes", hint: "⌘2", Icon: NotebookPen },
+  { id: "schedule", label: "Schedule", hint: "⌘3", Icon: CalendarClock },
 ] as const;
 
+export type Screen = (typeof SCREENS)[number]["id"];
+
 /**
- * The only navigation in the app. Icons rather than words — two screens don't
+ * The only navigation in the app. Icons rather than words — three screens don't
  * need a legend, and the window is narrow enough to want the width back.
  */
 export function Rail({
   screen,
   onScreen,
-  running,
+  marks,
 }: {
   screen: Screen;
   onScreen: (screen: Screen) => void;
-  /** Something is counting on a screen you might not be looking at. */
-  running: boolean;
+  /**
+   * Which screens have something happening on them: a clock running, a meeting
+   * about to start. You can be looking elsewhere while either is true.
+   */
+  marks: Partial<Record<Screen, boolean>>;
 }) {
   return (
     <nav className="rail" aria-label="Screens">
@@ -39,7 +45,7 @@ export function Rail({
           onClick={() => onScreen(id)}
         >
           <Icon size={18} />
-          {id === "timer" && running && <i className="pulse rail__live" />}
+          {marks[id] === true && <i className="pulse rail__live" />}
         </button>
       ))}
     </nav>

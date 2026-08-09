@@ -6,7 +6,8 @@ import {
   type Task,
   type TasksApi,
 } from "../lib/tasks";
-import { formatTimeOfDay, splitClock } from "../lib/time";
+import { formatDurationShort, formatTimeOfDay } from "../lib/time";
+import { Elapsed } from "./Elapsed";
 import "./NowPanel.css";
 
 interface NowPanelProps {
@@ -20,7 +21,7 @@ interface NowPanelProps {
 
 /** The running task, front and centre: what it is and how long it's been. */
 export function NowPanel({ task, now, from, to, api }: NowPanelProps) {
-  const [clock, seconds] = splitClock(elapsedBetween(task, from, to, now));
+  const dayMs = elapsedBetween(task, from, to, now);
   const since = startedAt(task);
 
   return (
@@ -48,10 +49,14 @@ export function NowPanel({ task, now, from, to, api }: NowPanelProps) {
       </h2>
 
       <div className="now__foot">
-        <time className="now__clock">
-          {clock}
-          <span className="now__seconds">{seconds}</span>
-        </time>
+        {/* Correctable here too: this is the figure you're actually watching
+            when you notice it's been counting through lunch. */}
+        <Elapsed
+          ms={dayMs}
+          title={`${formatDurationShort(dayMs)} today`}
+          large
+          onCommit={(ms) => api.setDayTotal(task.id, from, to, ms)}
+        />
 
         <div className="now__actions">
           <button className="btn btn--ghost" onClick={() => api.stop(task.id)}>

@@ -237,6 +237,98 @@ function measure(
   };
 }
 
+/**
+ * Put a rewritten list of runs back into the shape the rest of the file
+ * assumes: nothing ends before it starts or after now — you can't bank time
+ * that hasn't passed — finished runs in the order they happened, and the one
+ * still going, if there is one, last.
+ */
+function normalizeSegments(segments: Segment[], now: number): Segment[] {
+  const closedRuns: Segment[] = [];
+  let open: Segment | null = null;
+
+  for (const segment of segments) {
+    const start = Math.min(segment.start, now);
+    if (segment.end === null) {
+      // Only one run can be in flight; a second would make two clocks.
+      if (open === null) open = { start, end: null };
+      else closedRuns.push({ start, end: Math.max(start, now) });
+      continue;
+    }
+    closedRuns.push({ start, end: Math.min(Math.max(start, segment.end), now) });
+  }
+
+  closedRuns.sort((a, b) => a.start - b.start);
+  return open === null ? closedRuns : [...closedRuns, open];
+}
+
+/**
+ * Rework a task's runs so its `[from, to)` clock reads `target`.
+ *
+ * All time derives from the runs, so "take an hour off" has to land on one of
+ * them. The day's newest run absorbs the change — that's the one you got wrong,
+ * because it's the one you forgot to stop — and a shortfall carries back into
+ * the run before it. Trimming the run still going moves its start rather than
+ * its end, so it keeps counting from a corrected figure.
+ */
+function retimed(
+  segments: Segment[],
+  from: number,
+  to: number,
+  now: number,
+  target: number,
+): Segment[] {
+  const slice = (s: Segment) =>
+    Math.max(0, Math.min(s.end ?? now, to) - Math.max(s.start, from));
+
+  let delta = target - segments.reduce((sum, s) => sum + slice(s), 0);
+  if (delta === 0) return segments;
+
+  const next = segments.map((s) => ({ ...s }));
+  const onDay = next.filter((s) => s.start < to && (s.end ?? now) > from);
+  /** Nothing on this day can reach past now, or past the day itself. */
+  const cap = Math.min(now, to);
+
+  if (delta < 0) {
+    for (let i = onDay.length - 1; i >= 0 && delta < 0; i--) {
+      const run = onDay[i];
+      const take = Math.min(slice(run), -delta);
+      if (take <= 0) continue;
+      if (run.end === null) run.start += take;
+      else run.end -= take;
+      delta += take;
+    }
+    // A finished run trimmed to nothing isn't a run any more. Only the ones
+    // this touched — an empty run recorded on some other day is its business.
+    const trimmed = new Set(onDay);
+    return next.filter(
+      (s) => s.end === null || s.end > s.start || !trimmed.has(s),
+    );
+  }
+
+  const last = onDay[onDay.length - 1];
+  // Never started, and you're telling it how long it took: that's one run.
+  if (last === undefined) {
+    return [...next, { start: Math.max(from, cap - delta), end: cap }];
+  }
+
+  if (last.end !== null) {
+    // You stopped later than it recorded — grow the end first.
+    const room = Math.max(0, cap - last.end);
+    const add = Math.min(room, delta);
+    last.end += add;
+    delta -= add;
+  }
+  if (delta > 0) {
+    // Then backwards, as far as the day and the run before it allow.
+    const previous = onDay[onDay.length - 2];
+    const floor = Math.max(from, previous?.end ?? from);
+    last.start -= Math.min(Math.max(0, last.start - floor), delta);
+  }
+
+  return next;
+}
+
 /** Close the open segment, if there is one. */
 function closed(task: Task, at: number): Task {
   const last = task.segments[task.segments.length - 1];
@@ -381,13 +473,16 @@ export function useTasks() {
      * `group` is whatever the composer's picker has selected; a key typed into
      * the text itself is more explicit, so it wins.
      */
-    add(text: string, group: string | null = null) {
+    add(text: string, group: string | null = null): string {
       const entry = parseEntry(text);
       const { name, estimateMs } = entry;
+      // Made here rather than inside the updater so the caller can act on the
+      // task it just asked for — booking a meeting starts the one it made.
+      const id = crypto.randomUUID();
       setTasks((current) => [
         ...current,
         {
-          id: crypto.randomUUID(),
+          id,
           group: entry.group ?? group,
           name,
           notes: "",
@@ -397,6 +492,7 @@ export function useTasks() {
           completedAt: null,
         },
       ]);
+      return id;
     },
 
     /**
@@ -483,6 +579,25 @@ export function useTasks() {
       }),
 
     reopen: (id: string) => update(id, (t) => ({ ...t, completedAt: null })),
+
+    /**
+     * Say what this task's clock should read for a day, and let the runs behind
+     * it follow. The only place a recorded time is ever changed — a measurement
+     * that came out wrong is worth correcting, and an hour you spent not
+     * working is corrected by saying what the hour should have been.
+     */
+    setDayTotal: (id: string, from: number, to: number, targetMs: number) =>
+      update(id, (t) => {
+        const at = Date.now();
+        const target = Math.max(0, targetMs);
+        return {
+          ...t,
+          segments: normalizeSegments(
+            retimed(t.segments, from, to, at, target),
+            at,
+          ),
+        };
+      }),
 
     remove: (id: string) =>
       setTasks((current) => current.filter((t) => t.id !== id)),

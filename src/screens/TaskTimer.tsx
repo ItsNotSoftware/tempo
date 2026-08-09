@@ -1,6 +1,7 @@
 import { useState, type RefObject } from "react";
-import { ChevronLeft, ChevronRight, Timer } from "lucide-react";
+import { ChevronRight, Timer } from "lucide-react";
 import { Composer } from "../components/Composer";
+import { DayNav } from "../components/DayNav";
 import { NowPanel } from "../components/NowPanel";
 import { TaskCard } from "../components/TaskCard";
 import { TaskGroup } from "../components/TaskGroup";
@@ -15,12 +16,7 @@ import {
   type Task,
   type TasksApi,
 } from "../lib/tasks";
-import {
-  addDays,
-  formatDay,
-  formatDurationShort,
-  startOfDay,
-} from "../lib/time";
+import { addDays, formatDurationShort, startOfDay } from "../lib/time";
 import "./TaskTimer.css";
 
 interface TaskTimerProps {
@@ -106,33 +102,7 @@ export function TaskTimer({ api, now, day, onDay, composer }: TaskTimerProps) {
             : `across ${visible.length} task${visible.length > 1 ? "s" : ""}`}
         </span>
 
-        <div className="timer__days">
-          <button
-            className="icon-btn"
-            title="Previous day"
-            aria-label="Previous day"
-            onClick={() => onDay(addDays(day, -1))}
-          >
-            <ChevronLeft size={17} />
-          </button>
-          <button
-            className="timer__day"
-            disabled={isToday}
-            title={isToday ? undefined : "Back to today"}
-            onClick={() => onDay(today)}
-          >
-            {formatDay(from, now)}
-          </button>
-          <button
-            className="icon-btn"
-            title="Next day"
-            aria-label="Next day"
-            disabled={isToday}
-            onClick={() => onDay(addDays(day, 1))}
-          >
-            <ChevronRight size={17} />
-          </button>
-        </div>
+        <DayNav day={day} now={now} onDay={onDay} />
       </header>
 
       <Split

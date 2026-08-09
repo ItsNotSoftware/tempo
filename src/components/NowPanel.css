@@ -65,19 +65,6 @@
   margin-top: 12px;
 }
 
-.now__clock {
-  font-family: var(--mono);
-  font-size: 40px;
-  font-weight: 250;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.045em;
-  line-height: 1;
-}
-
-.now__seconds {
-  color: var(--text-muted);
-}
-
 .now__actions {
   display: flex;
   gap: 7px;
@@ -88,10 +75,6 @@
 @media (max-height: 644px) {
   .now {
     padding: 12px 16px 13px;
-  }
-
-  .now__clock {
-    font-size: 31px;
   }
 
   .now__foot {

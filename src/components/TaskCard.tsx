@@ -15,11 +15,8 @@ import {
   type Task,
   type TasksApi,
 } from "../lib/tasks";
-import {
-  formatDuration,
-  formatDurationShort,
-  parseEstimate,
-} from "../lib/time";
+import { formatDurationShort, parseEstimate } from "../lib/time";
+import { Elapsed } from "./Elapsed";
 import "./TaskCard.css";
 
 interface TaskCardProps {
@@ -70,6 +67,11 @@ export function TaskCard({
   const budget =
     task.estimateMs !== null && task.estimateMs > 0 ? task.estimateMs : null;
   const spent = budget === null ? 0 : totalMs / budget;
+
+  const elapsedTitle =
+    dayMs === totalMs
+      ? `${formatDurationShort(totalMs)} total`
+      : `${formatDurationShort(dayMs)} of ${formatDurationShort(totalMs)} total`;
 
   function commitEstimate(value: string) {
     const text = value.trim();
@@ -137,16 +139,15 @@ export function TaskCard({
         />
 
         <div className="task__time">
-          <time
-            className="task__elapsed"
-            title={
-              dayMs === totalMs
-                ? `${formatDurationShort(totalMs)} total`
-                : `${formatDurationShort(dayMs)} of ${formatDurationShort(totalMs)} total`
-            }
-          >
-            {formatDuration(dayMs)}
-          </time>
+          {/* A measurement that came out wrong is corrected where it's read:
+              type what the clock should say. A past day is a record, so there
+              it's just a number. */}
+          <Elapsed
+            ms={dayMs}
+            title={elapsedTitle}
+            readOnly={readOnly}
+            onCommit={(ms) => api.setDayTotal(task.id, from, to, ms)}
+          />
 
           {editEstimate ? (
             <input

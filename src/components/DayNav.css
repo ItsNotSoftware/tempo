@@ -1,0 +1,46 @@
+.days {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  align-self: center;
+}
+
+.days__day {
+  /* Fixed so stepping between `Today` and `Fri 1 Aug` doesn't shift the arrows. */
+  min-width: 96px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  color: var(--text-muted);
+  text-align: center;
+  transition:
+    background 0.13s ease,
+    color 0.13s ease;
+}
+
+.days__day:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.days__day:disabled {
+  cursor: default;
+  color: var(--text-faint);
+}
+
+.days .icon-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.days .icon-btn:disabled:hover {
+  background: none;
+  color: var(--text-faint);
+}
+
+@media (max-width: 644px) {
+  .days__day {
+    min-width: 78px;
+  }
+}

@@ -1,0 +1,154 @@
+/* Position comes from the screen — this only says what a booking looks like.
+   `--tone` is its group's colour, set inline, standing in for the name the way
+   the dot does everywhere else. */
+.event {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  padding: 3px 6px 3px 9px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--tone);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.event:hover,
+.event:focus-within {
+  background: var(--surface-hover);
+  border-color: var(--border-strong);
+  border-left-color: var(--tone);
+  /* Short bookings are shorter than their own contents; hovering lifts one
+     clear so you can read it and reach its actions. */
+  overflow: visible;
+  min-height: 34px;
+  z-index: 4;
+}
+
+/* Happening now — the same treatment a running task gets. */
+.event--live {
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+}
+
+.event--tracking {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.event--past {
+  opacity: 0.5;
+}
+
+.event--past:hover,
+.event--past:focus-within {
+  opacity: 1;
+}
+
+.event__dot {
+  background: var(--tone);
+}
+
+.event__when {
+  flex-shrink: 0;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
+.event__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 14.5px;
+}
+
+.event__len {
+  flex-shrink: 0;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+/* --- Actions, quiet until the booking is touched --- */
+
+.event__actions {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  flex-shrink: 0;
+}
+
+.event__actions > button {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.event:hover .event__actions > button,
+.event:focus-within .event__actions > button,
+.event__actions > button.is-on,
+.event__actions > button.is-armed {
+  opacity: 1;
+}
+
+/* The length gives its room to the buttons rather than wrapping the row. */
+.event:hover .event__len,
+.event:focus-within .event__len {
+  display: none;
+}
+
+/* --- Being changed --- */
+
+/* Editing needs more room than the slot has, so the block grows over the grid. */
+.event--editing,
+.event--editing:hover {
+  overflow: visible;
+  height: auto;
+  min-height: 42px;
+  z-index: 6;
+  box-shadow: var(--shadow);
+}
+
+.event__edit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 3px 0;
+}
+
+.event__field {
+  flex: 1;
+  min-width: 60px;
+  padding: 4px 7px;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  background: var(--bg);
+  font-size: 14.5px;
+}
+
+.event__field:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.event__at,
+.event__for {
+  width: 7ch;
+  text-align: center;
+}
+
+.event__save {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 13.5px;
+}

@@ -1,21 +1,25 @@
 import { useEffect, useRef, useState } from "react";
-import { Rail, type Screen } from "./components/Rail";
-import { useEstimateAlerts } from "./lib/alerts";
+import { Rail, SCREENS, type Screen } from "./components/Rail";
+import { useEstimateAlerts, useEventAlerts } from "./lib/alerts";
+import { startEvent, useEvents, type Event } from "./lib/events";
 import { taskStatus, useTasks } from "./lib/tasks";
 import { addDays, startOfDay } from "./lib/time";
 import { useTray } from "./lib/tray";
 import { Notes } from "./screens/Notes";
+import { Schedule } from "./screens/Schedule";
 import { TaskTimer } from "./screens/TaskTimer";
 
 export default function App() {
   const api = useTasks();
+  const events = useEvents();
   const running = api.tasks.some((t) => taskStatus(t) === "running");
   const now = useNow(running);
 
   const [screen, setScreen] = useState<Screen>("timer");
   /**
-   * 0 is today; every step back is one more day of history. One cursor for the
-   * whole app — step back on the timer and the notebook comes with you.
+   * 0 is today; a step back is a day of history, a step forward is a day you
+   * can only book into. One cursor for the whole app — step back on the timer
+   * and the notebook comes with you.
    */
   const [dayOffset, setDayOffset] = useState(0);
   /** Which kept note the notebook is on; `null` is the day's own page. */
@@ -26,14 +30,18 @@ export default function App() {
   const today = startOfDay(now);
   const day = addDays(today, -dayOffset);
 
-  // Both live outside the window, so they answer for today whatever day is
-  // being looked at — and they keep answering while the notebook is on screen,
-  // which is why they're up here and not down in the timer.
-  useTray(api, now, today, addDays(today, 1));
+  /** Put the clock on a booking, from wherever the ask came from. */
+  const start = (event: Event) => startEvent(event, api, events);
+
+  // All three live outside the window, so they answer for today whatever day is
+  // being looked at — and they keep answering while another screen is up, which
+  // is why they're up here and not down in a screen.
+  useTray(api, events.events, now, today, addDays(today, 1), start);
   useEstimateAlerts(api.tasks, api.groups, now);
+  const soon = useEventAlerts(events.events, now, start);
 
   const goDay = (dayStart: number) =>
-    setDayOffset(Math.max(0, Math.round((today - startOfDay(dayStart)) / DAY)));
+    setDayOffset(Math.round((today - startOfDay(dayStart)) / DAY));
 
   function toComposer() {
     setScreen("timer");
@@ -48,9 +56,11 @@ export default function App() {
       if (!(e.metaKey || e.ctrlKey)) return;
       const key = e.key.toLowerCase();
 
-      if (key === "1" || key === "2") {
+      // The rail's own order, so a screen added there is reachable here too.
+      const digit = SCREENS[Number(key) - 1];
+      if (digit !== undefined) {
         e.preventDefault();
-        setScreen(key === "1" ? "timer" : "notes");
+        setScreen(digit.id);
       } else if (key === "k") {
         e.preventDefault();
         toComposer();
@@ -62,9 +72,13 @@ export default function App() {
 
   return (
     <div className="app">
-      <Rail screen={screen} onScreen={setScreen} running={running} />
+      <Rail
+        screen={screen}
+        onScreen={setScreen}
+        marks={{ timer: running, schedule: soon }}
+      />
       <main className="app__content">
-        {screen === "timer" ? (
+        {screen === "timer" && (
           <TaskTimer
             api={api}
             now={now}
@@ -72,7 +86,9 @@ export default function App() {
             onDay={goDay}
             composer={composer}
           />
-        ) : (
+        )}
+
+        {screen === "notes" && (
           <Notes
             api={api}
             now={now}
@@ -81,6 +97,16 @@ export default function App() {
             kept={kept}
             onKept={setKept}
             onOpenTimer={() => setScreen("timer")}
+          />
+        )}
+
+        {screen === "schedule" && (
+          <Schedule
+            api={api}
+            events={events}
+            now={now}
+            day={day}
+            onDay={goDay}
           />
         )}
       </main>

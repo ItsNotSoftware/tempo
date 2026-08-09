@@ -1,0 +1,235 @@
+.sched {
+  max-width: 700px;
+  margin: 0 auto;
+  padding: 28px 26px 64px;
+}
+
+/* --- Header --- */
+
+.sched__head {
+  display: flex;
+  align-items: baseline;
+  margin-bottom: 16px;
+}
+
+.sched__total {
+  font-family: var(--mono);
+  font-size: 33px;
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.04em;
+}
+
+.sched__sub {
+  margin-left: 11px;
+  font-size: 15px;
+  color: var(--text-faint);
+}
+
+/* --- Booking --- */
+
+.booking {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  margin-bottom: 22px;
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  background: var(--bg-elevated);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.booking:focus-within {
+  border-color: var(--accent-line);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.booking__title {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 0 9px 8px;
+  border: none;
+  background: none;
+}
+
+.booking__title:focus {
+  outline: none;
+}
+
+.booking__title::placeholder {
+  color: var(--text-faint);
+}
+
+.booking__divider {
+  width: 1px;
+  height: 21px;
+  flex-shrink: 0;
+  background: var(--border);
+}
+
+/* `at 14:30` / `for 1h` reads as a sentence, which is the whole ask. */
+.booking__field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  font-size: 14px;
+  color: var(--text-faint);
+}
+
+.booking__at,
+.booking__for {
+  width: 7.5ch;
+  text-align: center;
+}
+
+/* A time that can't be read says so quietly rather than refusing the keystroke. */
+.booking__at.is-bad,
+.booking__for.is-bad {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.booking__add {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  height: 40px;
+  padding: 0 16px 0 13px;
+  border-radius: 11px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 16px;
+  font-weight: 500;
+  transition:
+    opacity 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.booking__add:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.booking__add:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* --- The day, as a column of hours --- */
+
+.sched__grid {
+  position: relative;
+}
+
+.sched__hour {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 1px;
+}
+
+.sched__hour::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.sched__label {
+  width: 46px;
+  flex-shrink: 0;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+  /* Sits on its line rather than under it. */
+  transform: translateY(-1px);
+}
+
+/* Where the bookings live: everything right of the hour labels. */
+.sched__lanes {
+  position: absolute;
+  inset: 0 0 0 56px;
+}
+
+/* Now, on today. The one moving part on a screen full of fixed times. */
+.sched__now {
+  position: absolute;
+  left: -8px;
+  right: 0;
+  height: 2px;
+  border-radius: 99px;
+  background: var(--accent);
+  z-index: 3;
+}
+
+.sched__now::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+/* --- Empty --- */
+
+.sched__empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  color: var(--text-muted);
+  font-size: 16px;
+  text-align: center;
+  /* The grid behind it still shows the shape of the day. */
+  pointer-events: none;
+}
+
+.sched__empty svg {
+  color: var(--text-faint);
+}
+
+.sched__empty-sub {
+  margin-top: -4px;
+  font-size: 15px;
+  color: var(--text-faint);
+}
+
+@media (max-width: 644px) {
+  .sched {
+    padding: 22px 14px 48px;
+  }
+
+  .sched__lanes {
+    inset: 0 0 0 50px;
+  }
+
+  .booking__field {
+    gap: 4px;
+  }
+}
+
+@media (max-height: 644px) {
+  .sched {
+    padding-top: 18px;
+  }
+
+  .sched__total {
+    font-size: 28px;
+  }
+}

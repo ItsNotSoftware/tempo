@@ -34,6 +34,7 @@ export function formatDay(dayStart: number, now: number): string {
   const back = Math.round((startOfDay(now) - dayStart) / 86_400_000);
   if (back === 0) return "Today";
   if (back === 1) return "Yesterday";
+  if (back === -1) return "Tomorrow";
   return formatDate(dayStart);
 }
 
@@ -47,6 +48,55 @@ export function parseEstimate(text: string): number | null {
   if (hours === undefined && minutes === undefined) return null;
   const ms = Number(hours ?? 0) * HOUR + Number(minutes ?? 0) * MINUTE;
   return ms > 0 ? ms : null;
+}
+
+/** `15:25`, `1525`, `9.05`, `3:05 pm` — as loose as it can be and stay honest. */
+const TIME_OF_DAY = /^\s*(\d{1,2})\s*[:.h]?\s*(\d{2})?\s*(am|pm)?\s*$/i;
+
+/**
+ * A wall clock read onto `dayStart`'s day. Built through `Date` rather than by
+ * adding milliseconds, so the hour the clocks change still lands where it reads.
+ * Anything it can't make sense of is `null` — the caller leaves the value alone
+ * rather than guessing, same as `parseEstimate`.
+ */
+export function parseTimeOfDay(text: string, dayStart: number): number | null {
+  const match = TIME_OF_DAY.exec(text);
+  if (match === null) return null;
+
+  const [, rawHours, rawMinutes, suffix] = match;
+  let hours = Number(rawHours);
+  const minutes = Number(rawMinutes ?? 0);
+
+  if (suffix !== undefined) {
+    if (hours < 1 || hours > 12) return null;
+    hours = (hours % 12) + (suffix.toLowerCase() === "pm" ? 12 : 0);
+  }
+  if (hours > 23 || minutes > 59) return null;
+
+  const day = new Date(dayStart);
+  day.setHours(hours, minutes, 0, 0);
+  return day.getTime();
+}
+
+/** `1:30:15`, `1:30` — a clock read back, the way the row writes it. */
+const CLOCK = /^\s*(\d+):([0-5]?\d)(?::([0-5]?\d))?\s*$/;
+
+/**
+ * However you'd say a length of time: `1:30:15` and `1:30` the way the row
+ * shows it, or `1h 30m` / `45m` / `90` the way an estimate is written. Zero is
+ * a real answer here — clearing a day's time is a thing you might mean — so
+ * this can't just be `parseEstimate`.
+ */
+export function parseDuration(text: string): number | null {
+  const clock = CLOCK.exec(text);
+  if (clock !== null) {
+    const [, hours, minutes, seconds] = clock;
+    return (
+      Number(hours) * HOUR + Number(minutes) * MINUTE + Number(seconds ?? 0) * SECOND
+    );
+  }
+  if (/^\s*0\s*$/.test(text)) return 0;
+  return parseEstimate(text);
 }
 
 function pad(value: number): string {

@@ -9,6 +9,7 @@ import {
 } from "@tauri-apps/api/menu";
 import { TrayIcon } from "@tauri-apps/api/tray";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { eventsOn, nextEvent, type Event } from "./events";
 import { paint } from "./mark";
 import {
   elapsedBetween,
@@ -25,6 +26,11 @@ import { formatClock, formatDurationShort, formatTimeOfDay } from "./time";
 
 /** How many idle tasks the Start submenu offers before it gets unwieldy. */
 const STARTABLE = 12;
+/**
+ * How far ahead the menu names the next booking. Far enough to catch the one
+ * you're about to walk into; not so far that the menu is an agenda.
+ */
+const UPCOMING = 15 * 60_000;
 /** Longer labels are cut — a menu as wide as the screen is no use to anyone. */
 const LABEL_CAP = 40;
 
@@ -48,13 +54,20 @@ type MenuItems = NonNullable<MenuOptions["items"]>;
  * Outside Tauri — `pnpm dev`, the screenshot harness — there is no tray and
  * everything below no-ops.
  */
-export function useTray(api: TasksApi, now: number, from: number, to: number) {
+export function useTray(
+  api: TasksApi,
+  events: Event[],
+  now: number,
+  from: number,
+  to: number,
+  onStartEvent: (event: Event) => void,
+) {
   const [tray, setTray] = useState<TrayIcon | null>(null);
 
   // Menu actions fire long after the render that built the menu, so they reach
   // the api through a ref rather than closing over the one they were made with.
-  const latest = useRef(api);
-  latest.current = api;
+  const latest = useRef({ api, onStartEvent });
+  latest.current = { api, onStartEvent };
 
   /** The menu currently on the tray, kept so the next build can free it. */
   const mounted = useRef<Menu | null>(null);
@@ -126,6 +139,13 @@ export function useTray(api: TasksApi, now: number, from: number, to: number) {
     )
     .slice(0, STARTABLE);
 
+  // The one booking worth a menu item: the next one, once it's close enough to
+  // be the thing you're about to do. macOS may not offer the notification's
+  // action button, so this is the path to its clock that always exists.
+  const upcoming = nextEvent(eventsOn(events, from, to), now);
+  const next =
+    upcoming !== null && upcoming.start - now <= UPCOMING ? upcoming : null;
+
   // Rebuilding the whole menu every second would be waste, so it only happens
   // when something in it would actually read differently — which, like the
   // title, is once a minute.
@@ -134,13 +154,14 @@ export function useTray(api: TasksApi, now: number, from: number, to: number) {
     Math.floor(elapsed / 60_000),
     Math.floor(total / 60_000),
     startable.map((t) => `${t.id}:${label(t)}`).join(" "),
+    next?.id ?? "",
   ].join("|");
 
   useEffect(() => {
     if (tray === null) return;
     let live = true;
 
-    void buildMenu(current, elapsed, total, startable, latest).then(
+    void buildMenu(current, elapsed, total, startable, next, latest).then(
       async (menu) => {
         // Beaten by a newer build while we were away.
         if (!live) return void menu.close();
@@ -207,8 +228,16 @@ function themeColor(name: string, fallback: string): string {
 
 /** `TEMPO-42 · fix the parser`, cut to something a menu can carry. */
 function label(task: Task): string {
-  const full = taskLabel(task);
-  return full.length > LABEL_CAP ? `${full.slice(0, LABEL_CAP - 1)}…` : full;
+  return cap(taskLabel(task));
+}
+
+function eventLabel(event: Event): string {
+  const name = event.title.trim() === "" ? "Untitled" : event.title.trim();
+  return cap(event.group === null ? name : `${event.group} · ${name}`);
+}
+
+function cap(text: string): string {
+  return text.length > LABEL_CAP ? `${text.slice(0, LABEL_CAP - 1)}…` : text;
 }
 
 async function buildMenu(
@@ -216,9 +245,11 @@ async function buildMenu(
   elapsed: number,
   total: number,
   startable: Task[],
-  api: { current: TasksApi },
+  next: Event | null,
+  latest: { current: { api: TasksApi; onStartEvent: (event: Event) => void } },
 ): Promise<Menu> {
   const items: MenuItems = [];
+  const api = () => latest.current.api;
 
   if (current === null) {
     items.push({ text: "Nothing tracking", enabled: false });
@@ -233,8 +264,20 @@ async function buildMenu(
       enabled: false,
     });
     items.push(await PredefinedMenuItem.new({ item: "Separator" }));
-    items.push({ text: "Pause", action: () => api.current.stop(current.id) });
-    items.push({ text: "Finish", action: () => api.current.finish(current.id) });
+    items.push({ text: "Pause", action: () => api().stop(current.id) });
+    items.push({ text: "Finish", action: () => api().finish(current.id) });
+  }
+
+  if (next !== null) {
+    items.push(await PredefinedMenuItem.new({ item: "Separator" }));
+    items.push({
+      text: `Next · ${formatTimeOfDay(next.start)} ${eventLabel(next)}`,
+      enabled: false,
+    });
+    items.push({
+      text: `Start ${eventLabel(next)}`,
+      action: () => latest.current.onStartEvent(next),
+    });
   }
 
   if (startable.length > 0) {
@@ -244,7 +287,7 @@ async function buildMenu(
         text: "Start",
         items: startable.map((task) => ({
           text: label(task),
-          action: () => api.current.start(task.id),
+          action: () => api().start(task.id),
         })),
       }),
     );
