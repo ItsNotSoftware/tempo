@@ -1,4 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { inTauri } from "./vault";
 import { parseEstimate } from "./time";
 
 export interface Segment {
@@ -440,20 +442,66 @@ export function groupMeta(groups: Groups, name: string): Group {
   return groups[name] ?? EMPTY_GROUP;
 }
 
+/** The disk copy. A no-op in a plain browser, which has no shell to ask. */
+async function mirror(tasks: Task[], groups: Groups) {
+  if (!inTauri) return;
+  try {
+    await invoke("save_state", { json: JSON.stringify({ tasks, groups }) });
+  } catch {
+    // localStorage still has it; a failed mirror isn't worth interrupting for.
+  }
+}
+
+async function loadMirror(): Promise<{ tasks: Task[]; groups: Groups } | null> {
+  if (!inTauri) return null;
+  try {
+    const raw = await invoke<string | null>("load_state");
+    if (raw === null) return null;
+    const parsed = JSON.parse(raw) as { tasks?: Task[]; groups?: Groups };
+    if (!Array.isArray(parsed.tasks)) return null;
+    return { tasks: parsed.tasks, groups: parsed.groups ?? {} };
+  } catch {
+    return null;
+  }
+}
+
 export type TasksApi = ReturnType<typeof useTasks>;
 
-/** Owns the task list: hydrates from localStorage, persists on every change. */
+/**
+ * Owns the task list. localStorage stays the read path so the tray and the
+ * alerts have state on the first frame; a file alongside it is the copy that
+ * survives the webview's storage being cleared.
+ */
 export function useTasks() {
   const [tasks, setTasks] = useState<Task[]>(readTasks);
   const [groups, setGroups] = useState<Groups>(readGroups);
+  const restored = useRef(false);
 
   useEffect(() => {
     localStorage.setItem(TASKS_KEY, JSON.stringify(tasks));
+    void mirror(tasks, groups);
+    // Only tasks drive the mirror; groups ride along on the same write.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tasks]);
 
   useEffect(() => {
     localStorage.setItem(GROUPS_KEY, JSON.stringify(groups));
+    void mirror(tasks, groups);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groups]);
+
+  // A fresh profile with a file behind it: take the file rather than start
+  // empty. Anything already in localStorage wins, so this can't undo an edit.
+  useEffect(() => {
+    if (restored.current) return;
+    restored.current = true;
+    if (localStorage.getItem(TASKS_KEY) !== null) return;
+    void loadMirror().then((saved) => {
+      if (saved === null) return;
+      setTasks(saved.tasks);
+      setGroups(saved.groups);
+    });
+  }, []);
 
   const update = (id: string, change: (task: Task) => Task) =>
     setTasks((current) => current.map((t) => (t.id === id ? change(t) : t)));

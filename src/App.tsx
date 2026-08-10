@@ -2,16 +2,19 @@ import { useEffect, useRef, useState } from "react";
 import { Rail, SCREENS, type Screen } from "./components/Rail";
 import { useEstimateAlerts, useEventAlerts } from "./lib/alerts";
 import { startEvent, useEvents, type Event } from "./lib/events";
+import { useNotes } from "./lib/notes";
 import { taskStatus, useTasks } from "./lib/tasks";
 import { addDays, startOfDay } from "./lib/time";
 import { useTray } from "./lib/tray";
 import { Notes } from "./screens/Notes";
 import { Schedule } from "./screens/Schedule";
+import { Settings } from "./screens/Settings";
 import { TaskTimer } from "./screens/TaskTimer";
 
 export default function App() {
   const api = useTasks();
   const events = useEvents();
+  const notes = useNotes();
   const running = api.tasks.some((t) => taskStatus(t) === "running");
   const now = useNow(running);
 
@@ -91,6 +94,7 @@ export default function App() {
         {screen === "notes" && (
           <Notes
             api={api}
+            notes={notes}
             now={now}
             day={day}
             onDay={goDay}
@@ -109,6 +113,8 @@ export default function App() {
             onDay={goDay}
           />
         )}
+
+        {screen === "settings" && <Settings notes={notes} />}
       </main>
     </div>
   );

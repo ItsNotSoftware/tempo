@@ -1,4 +1,4 @@
-import { CalendarClock, NotebookPen, Timer } from "lucide-react";
+import { CalendarClock, NotebookPen, Settings, Timer } from "lucide-react";
 import { Mark } from "./Mark";
 import "./Rail.css";
 
@@ -8,6 +8,7 @@ export const SCREENS = [
   { id: "timer", label: "Timer", hint: "⌘1", Icon: Timer },
   { id: "notes", label: "Notes", hint: "⌘2", Icon: NotebookPen },
   { id: "schedule", label: "Schedule", hint: "⌘3", Icon: CalendarClock },
+  { id: "settings", label: "Settings", hint: "⌘4", Icon: Settings },
 ] as const;
 
 export type Screen = (typeof SCREENS)[number]["id"];

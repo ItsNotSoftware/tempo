@@ -23,9 +23,9 @@ import {
   folderTree,
   keptNotes,
   rootNotes,
-  useNotes,
   type FolderNode,
   type Note,
+  type NotesApi,
 } from "../lib/notes";
 import {
   elapsedBetween,
@@ -47,6 +47,7 @@ import "./Notes.css";
 interface NotesProps {
   /** Read-only in here: the day's ribbon, and nothing else. */
   api: TasksApi;
+  notes: NotesApi;
   now: number;
   /** The day in view, shared with the timer. */
   day: number;
@@ -69,6 +70,7 @@ const MODES = [
 
 export function Notes({
   api,
+  notes,
   now,
   day,
   onDay,
@@ -76,12 +78,13 @@ export function Notes({
   onKept,
   onOpenTimer,
 }: NotesProps) {
-  const notes = useNotes();
   /** One at a time: `note:<id>` or `folder:<path>`. */
   const [armed, setArmed] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [drag, setDrag] = useState<Drag | null>(null);
+  /** The title being typed. Committing renames the file, so it waits for blur. */
+  const [titling, setTitling] = useState<string | null>(null);
   /** Live width while the divider is pulled; written to view on release. */
   const [pulling, setPulling] = useState<number | null>(null);
   const name = useRef<HTMLInputElement>(null);
@@ -118,6 +121,19 @@ export function Notes({
   const today = startOfDay(now);
   // A note deleted out from under the selection drops back to the day page.
   const open = keptNotes(notes.notes).find((n) => n.id === kept) ?? null;
+
+  /** A path is an identity, so anything that moves takes the selection with it. */
+  function moved(from: string, to: string) {
+    if (kept !== null && descends(kept, from)) onKept(to + kept.slice(from.length));
+  }
+
+  function commitTitle() {
+    if (titling === null || open === null) return;
+    const next = notes.rename(open.id, titling);
+    setTitling(null);
+    if (next !== open.id) onKept(next);
+  }
+
   const tree = folderTree(notes.notes, notes.folders);
   const loose = rootNotes(notes.notes);
 
@@ -160,7 +176,7 @@ export function Notes({
 
   function commitRename(path: string) {
     setRenaming(null);
-    notes.renameFolder(path, draft);
+    moved(path, notes.renameFolder(path, draft));
   }
 
   // --- Filing by drag ---
@@ -206,8 +222,8 @@ export function Notes({
       // Releasing over a row would otherwise also fire its click.
       window.addEventListener("click", swallow, { capture: true, once: true });
       if (onto === null) return;
-      if (kind === "note") notes.file(key, onto === ROOT ? null : onto);
-      else notes.moveFolder(key, onto === ROOT ? null : onto);
+      const to = onto === ROOT ? null : onto;
+      moved(key, kind === "note" ? notes.file(key, to) : notes.moveFolder(key, to));
     };
 
     window.addEventListener("pointermove", move);
@@ -393,6 +409,8 @@ export function Notes({
   /** Nothing written has nothing to read — a blank read view is a dead end. */
   const reading = view.mode === "read" && body.trim() !== "";
 
+  if (!notes.loaded) return <div className="notes notes--waiting" />;
+
   return (
     <div
       className={`notes${view.hidden ? " is-alone" : ""}`}
@@ -486,8 +504,13 @@ export function Notes({
               className="page__name"
               aria-label="Note name"
               placeholder="Untitled note"
-              value={open.title}
-              onChange={(e) => notes.rename(open.id, e.target.value)}
+              value={titling ?? open.title}
+              onChange={(e) => setTitling(e.target.value)}
+              onBlur={commitTitle}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") e.currentTarget.blur();
+                if (e.key === "Escape") setTitling(null);
+              }}
             />
           )}
 

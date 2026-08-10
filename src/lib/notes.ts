@@ -1,35 +1,27 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { dayFile, vault, type Index, type Snapshot } from "./vault";
 
-const NOTES_KEY = "tempo.notes.v1";
-const FOLDERS_KEY = "tempo.folders.v1";
 const VIEW_KEY = "tempo.notes.view.v1";
 
 /**
- * Two kinds of page, told apart by `day`: the dated one the notebook opens on,
- * and a kept note — something you named because you keep coming back to it.
+ * A page is a file. Kept notes are `<folder>/<title>.md` anywhere in the tree,
+ * day pages are `Days/YYYY-MM-DD.md`. The path is the identity, so renaming a
+ * note moves it and hands back a new id.
  */
 export interface Note {
+  /** Path relative to the notes root. */
   id: string;
   /** Midnight of the day this page belongs to; `null` on a kept note. */
   day: number | null;
-  /** A kept note's name. A day page is titled by its date. */
+  /** A kept note's name — its filename. A day page is titled by its date. */
   title: string;
   body: string;
-  /** Kept notes only — pinned ones sit at the top of the shelf. */
   pinned: boolean;
-  /**
-   * Path of the folder holding this note ("Work/On-call"); `null` at the root.
-   * Kept notes only — a day page is filed by its date and nothing else.
-   */
+  /** Folder holding this note; `null` at the root. Kept notes only. */
   folder: string | null;
   createdAt: number;
 }
 
-/**
- * No id, the way groups have none: a path on each note plus the list of paths
- * that exist. A list rather than something derived from the notes, so a folder
- * survives being emptied.
- */
 export interface Folder {
   /** Full path, "/"-separated. The last segment is the name on screen. */
   path: string;
@@ -46,30 +38,6 @@ export interface View {
 
 const DEFAULT_VIEW: View = { mode: "read", pages: 240, hidden: false };
 
-function readNotes(): Note[] {
-  try {
-    const raw = localStorage.getItem(NOTES_KEY);
-    if (raw === null) return [];
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    // Notes written before folders existed have no `folder`.
-    return (parsed as Note[]).map((n) => ({ ...n, folder: n.folder ?? null }));
-  } catch {
-    return [];
-  }
-}
-
-function readFolders(): Folder[] {
-  try {
-    const raw = localStorage.getItem(FOLDERS_KEY);
-    if (raw === null) return [];
-    const parsed: unknown = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as Folder[]) : [];
-  } catch {
-    return [];
-  }
-}
-
 function readView(): View {
   try {
     const raw = localStorage.getItem(VIEW_KEY);
@@ -82,7 +50,68 @@ function readView(): View {
   }
 }
 
-/** The page for a day, or `null` — an untouched day has no row at all. */
+// --- Paths ---
+
+const DAY_FILE = /^Days\/(\d{4})-(\d{2})-(\d{2})\.md$/;
+
+function dayOf(rel: string): number | null {
+  const m = DAY_FILE.exec(rel);
+  return m === null
+    ? null
+    : new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).getTime();
+}
+
+/** The last segment of a path — what a folder is called, without its parents. */
+export function folderName(path: string): string {
+  return path.slice(path.lastIndexOf("/") + 1);
+}
+
+/** Is `path` the folder `of`, or somewhere inside it? */
+export function descends(path: string, of: string): boolean {
+  return path === of || path.startsWith(`${of}/`);
+}
+
+function parentOf(path: string): string | null {
+  const cut = path.lastIndexOf("/");
+  return cut === -1 ? null : path.slice(0, cut);
+}
+
+const join = (folder: string | null, name: string) =>
+  folder === null ? name : `${folder}/${name}`;
+
+/** Strips what a filename can't carry, and never returns an empty name. */
+function safeName(title: string): string {
+  const clean = title.replace(/[/\\:*?"<>|]/g, "-").trim();
+  return clean === "" ? "Untitled note" : clean;
+}
+
+/** `Deploy steps`, `Deploy steps 2`, … — never silently merging with a file. */
+function freePath(taken: Set<string>, folder: string | null, name: string): string {
+  let path = join(folder, `${name}.md`);
+  for (let n = 2; taken.has(path); n++) path = join(folder, `${name} ${n}.md`);
+  return path;
+}
+
+function toNote(
+  file: { rel: string; body: string; modified: number },
+  index: Index,
+): Note {
+  const meta = index.notes[file.rel] ?? {};
+  const day = dayOf(file.rel);
+  return {
+    id: file.rel,
+    day,
+    title: day === null ? folderName(file.rel).replace(/\.md$/, "") : "",
+    body: file.body,
+    pinned: meta.pinned === true,
+    folder: day === null ? parentOf(file.rel) : null,
+    createdAt: meta.createdAt ?? file.modified,
+  };
+}
+
+// --- Selectors ---
+
+/** The page for a day, or `null` — an untouched day has no file at all. */
 export function dayPage(notes: Note[], day: number): Note | null {
   return notes.find((n) => n.day === day) ?? null;
 }
@@ -97,8 +126,7 @@ export function dayPages(notes: Note[]): Note[] {
 /**
  * Kept notes: pinned first, then in the order they were made — never by when
  * they were last touched. A shelf that reshuffles under you is one you stop
- * being able to find things on, the same reason the day's rows don't sort by
- * time.
+ * being able to find things on.
  */
 export function keptNotes(notes: Note[]): Note[] {
   return notes
@@ -108,29 +136,12 @@ export function keptNotes(notes: Note[]): Note[] {
     );
 }
 
-/** The last segment of a path — what a folder is called, without its parents. */
-export function folderName(path: string): string {
-  return path.slice(path.lastIndexOf("/") + 1);
-}
-
-/** Is `path` the folder `of`, or somewhere inside it? */
-export function descends(path: string, of: string): boolean {
-  return path === of || path.startsWith(`${of}/`);
-}
-
-/** The parent path of a folder, or `null` for one sitting at the root. */
-function parentOf(path: string): string | null {
-  const cut = path.lastIndexOf("/");
-  return cut === -1 ? null : path.slice(0, cut);
-}
-
 export interface FolderNode {
   path: string;
   name: string;
   /** How far in, so the row can indent without a class per level. */
   depth: number;
   collapsed: boolean;
-  /** The notes filed directly here, in the shelf's order. */
   notes: Note[];
   children: FolderNode[];
 }
@@ -167,9 +178,8 @@ export function folderContents(
   folders: Folder[],
   path: string,
 ): { folders: Folder[]; notes: Note[] } {
-  const inside = folders.filter((f) => descends(f.path, path));
   return {
-    folders: inside,
+    folders: folders.filter((f) => descends(f.path, path)),
     notes: notes.filter((n) => n.folder !== null && descends(n.folder, path)),
   };
 }
@@ -180,20 +190,54 @@ export function folderContents(
  */
 const SAVE_DELAY = 400;
 
+const EMPTY: Snapshot = {
+  root: "",
+  notes: [],
+  dirs: [],
+  index: { notes: {}, folders: {} },
+};
+
 export type NotesApi = ReturnType<typeof useNotes>;
 
-/** Owns the notebook: hydrates from localStorage, persists just behind you. */
+/** Owns the notebook: loads the vault once, writes back just behind you. */
 export function useNotes() {
-  const [notes, setNotes] = useState<Note[]>(readNotes);
-  // Both change rarely enough to write straight through; only typing needs
-  // the debounce below.
-  const [folders, setFolders] = useState<Folder[]>(readFolders);
+  const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [view, setViewState] = useState<View>(readView);
 
-  const writeFolders = (next: Folder[]) => {
-    setFolders(next);
-    localStorage.setItem(FOLDERS_KEY, JSON.stringify(next));
-  };
+  // Only bodies are deferred. Everything else is a filesystem operation the
+  // user asked for, and goes through at once.
+  const dirty = useRef(new Set<string>());
+  const timer = useRef<number | null>(null);
+  const latest = useRef(snapshot);
+  latest.current = snapshot;
+
+  const flush = useCallback(() => {
+    if (timer.current !== null) {
+      clearTimeout(timer.current);
+      timer.current = null;
+    }
+    for (const rel of dirty.current) {
+      const file = latest.current?.notes.find((n) => n.rel === rel);
+      if (file !== undefined) void vault.writeNote(rel, file.body);
+    }
+    dirty.current.clear();
+  }, []);
+
+  useEffect(() => {
+    void vault.load().then(setSnapshot);
+  }, []);
+
+  useEffect(() => {
+    // Closing the window only hides it, so this is the usual way out.
+    const onHidden = () => {
+      if (document.hidden) flush();
+    };
+    document.addEventListener("visibilitychange", onHidden);
+    return () => {
+      document.removeEventListener("visibilitychange", onHidden);
+      flush();
+    };
+  }, [flush]);
 
   const setView = (patch: Partial<View>) => {
     const next = { ...view, ...patch };
@@ -201,183 +245,218 @@ export function useNotes() {
     localStorage.setItem(VIEW_KEY, JSON.stringify(next));
   };
 
-  /**
-   * Move a branch to a new path. Renaming and dragging are the same operation:
-   * the prefix changes and every subfolder and note inside comes with it.
-   */
-  const repath = (from: string, to: string) => {
-    if (to === from || folders.some((f) => f.path === to)) return;
-    const rewrite = (path: string) => to + path.slice(from.length);
-    writeFolders(
-      folders.map((f) =>
-        descends(f.path, from) ? { ...f, path: rewrite(f.path) } : f,
-      ),
-    );
-    setNotes((current) =>
-      current.map((n) =>
-        n.folder !== null && descends(n.folder, from)
-          ? { ...n, folder: rewrite(n.folder) }
-          : n,
-      ),
-    );
+  const state = snapshot ?? EMPTY;
+  const notes = state.notes.map((f) => toNote(f, state.index));
+  const folders: Folder[] = state.dirs.map((path) => ({
+    path,
+    collapsed: state.index.folders[path]?.collapsed === true,
+  }));
+  const taken = new Set(state.notes.map((n) => n.rel));
+
+  const patch = (next: (current: Snapshot) => Snapshot) =>
+    setSnapshot((current) => (current === null ? current : next(current)));
+
+  const writeIndex = (next: Index) => {
+    patch((current) => ({ ...current, index: next }));
+    void vault.writeIndex(next);
   };
 
-  // Unlike a task's three-line note, a notebook only grows — serialising the
-  // whole thing on every keystroke is a stutter you can feel by the end of a
-  // month. Only the write is deferred; the textarea stays fully controlled, so
-  // typing never lags behind the caret.
-  const timer = useRef<number | null>(null);
-  const latest = useRef(notes);
-  latest.current = notes;
-
-  // Touches nothing but refs, so the mount-only effect below can hold on to the
-  // first one it was given.
-  const flush = () => {
-    if (timer.current === null) return;
-    clearTimeout(timer.current);
-    timer.current = null;
-    localStorage.setItem(NOTES_KEY, JSON.stringify(latest.current));
-  };
-
-  useEffect(() => {
+  const setBody = (rel: string, body: string) => {
+    patch((current) => ({
+      ...current,
+      notes: current.notes.some((n) => n.rel === rel)
+        ? current.notes.map((n) => (n.rel === rel ? { ...n, body } : n))
+        : [...current.notes, { rel, body, modified: Date.now() }],
+    }));
+    dirty.current.add(rel);
     if (timer.current !== null) clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => {
-      timer.current = null;
-      localStorage.setItem(NOTES_KEY, JSON.stringify(latest.current));
-    }, SAVE_DELAY);
-  }, [notes]);
+    timer.current = window.setTimeout(flush, SAVE_DELAY);
+  };
 
-  useEffect(() => {
-    // Closing the window only hides it, so this is the usual way out of the app.
-    const onHidden = () => {
-      if (document.hidden) flush();
-    };
-    document.addEventListener("visibilitychange", onHidden);
-    // And leaving for the timer unmounts the screen.
-    return () => {
-      document.removeEventListener("visibilitychange", onHidden);
-      flush();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const removeFile = (rel: string) => {
+    dirty.current.delete(rel);
+    patch((current) => ({
+      ...current,
+      notes: current.notes.filter((n) => n.rel !== rel),
+    }));
+    void vault.deleteNote(rel);
+  };
 
-  const made = (over: Partial<Note>): Note => ({
-    id: crypto.randomUUID(),
-    day: null,
-    title: "",
-    body: "",
-    pinned: false,
-    folder: null,
-    createdAt: Date.now(),
-    ...over,
-  });
+  /** Move a file or a directory, taking everything under it. */
+  const movePath = (from: string, to: string) => {
+    if (from === to) return;
+    // The pending body belongs to the old path; it has to land before the move.
+    flush();
+    const moved = (p: string) => to + p.slice(from.length);
+    const rekey = <T,>(map: Record<string, T>) =>
+      Object.fromEntries(
+        Object.entries(map).map(([k, v]) => [descends(k, from) ? moved(k) : k, v]),
+      );
+
+    let after: Snapshot | null = null;
+    patch((current) => {
+      after = {
+        ...current,
+        notes: current.notes.map((n) =>
+          descends(n.rel, from) ? { ...n, rel: moved(n.rel) } : n,
+        ),
+        dirs: current.dirs.map((d) => (descends(d, from) ? moved(d) : d)),
+        index: {
+          notes: rekey(current.index.notes),
+          folders: rekey(current.index.folders),
+        },
+      };
+      return after;
+    });
+    void vault.movePath(from, to).then(() => {
+      if (after !== null) void vault.writeIndex(after.index);
+    });
+  };
 
   return {
     notes,
     folders,
     view,
     setView,
+    /** False until the vault has been read; the screen waits on it. */
+    loaded: snapshot !== null,
+    /** The directory the notebook is in, for the settings screen. */
+    root: state.root,
 
     /**
      * A day page exists exactly when there is something written on it: the
-     * first keystroke makes it, clearing the last character takes it away — so
-     * selecting all and deleting *is* how you throw one out.
-     *
-     * Testing the raw string rather than a trim is deliberate. Trimming would
-     * eat the first space you ever type, because the row would never be made
-     * and the controlled value would snap straight back to empty.
+     * first keystroke makes the file, clearing the last character deletes it.
+     * Testing the raw string rather than a trim is deliberate — trimming would
+     * eat the first space you type, because the file would never be made.
      */
     writeDay(day: number, body: string) {
-      setNotes((current) => {
-        const existing = current.find((n) => n.day === day);
-        if (body === "") {
-          return existing === undefined
-            ? current
-            : current.filter((n) => n.id !== existing.id);
-        }
-        if (existing === undefined) return [...current, made({ day, body })];
-        return current.map((n) =>
-          n.id === existing.id ? { ...n, body } : n,
-        );
-      });
+      const rel = dayFile(day);
+      if (body === "") {
+        if (taken.has(rel)) removeFile(rel);
+        return;
+      }
+      if (!taken.has(rel)) {
+        writeIndex({
+          ...state.index,
+          notes: { ...state.index.notes, [rel]: { createdAt: Date.now() } },
+        });
+      }
+      setBody(rel, body);
     },
 
-    write: (id: string, body: string) =>
-      setNotes((current) =>
-        current.map((n) => (n.id === id ? { ...n, body } : n)),
-      ),
+    write: (id: string, body: string) => setBody(id, body),
 
     /** A new kept note. The id comes back so the caller can select and name it. */
     keep(folder: string | null = null): string {
-      const note = made({ folder });
-      setNotes((current) => [...current, note]);
-      return note.id;
+      const rel = freePath(taken, folder, "Untitled note");
+      writeIndex({
+        ...state.index,
+        notes: { ...state.index.notes, [rel]: { createdAt: Date.now() } },
+      });
+      setBody(rel, "");
+      return rel;
+    },
+
+    /** Renames the file, so the new path comes back as the new id. */
+    rename(id: string, title: string): string {
+      const note = notes.find((n) => n.id === id);
+      if (note === undefined || note.day !== null) return id;
+      const name = safeName(title);
+      if (name === note.title) return id;
+      const to = freePath(taken, note.folder, name);
+      movePath(id, to);
+      return to;
+    },
+
+    pin(id: string, pinned: boolean) {
+      writeIndex({
+        ...state.index,
+        notes: { ...state.index.notes, [id]: { ...state.index.notes[id], pinned } },
+      });
     },
 
     /** `null` puts the note back on the root shelf. */
-    file: (id: string, folder: string | null) =>
-      setNotes((current) =>
-        current.map((n) => (n.id === id ? { ...n, folder } : n)),
-      ),
+    file(id: string, folder: string | null): string {
+      const note = notes.find((n) => n.id === id);
+      if (note === undefined || note.folder === folder) return id;
+      const to = freePath(taken, folder, safeName(note.title));
+      movePath(id, to);
+      return to;
+    },
 
-    rename: (id: string, title: string) =>
-      setNotes((current) =>
-        current.map((n) => (n.id === id ? { ...n, title } : n)),
-      ),
-
-    pin: (id: string, pinned: boolean) =>
-      setNotes((current) =>
-        current.map((n) => (n.id === id ? { ...n, pinned } : n)),
-      ),
-
-    remove: (id: string) =>
-      setNotes((current) => current.filter((n) => n.id !== id)),
+    remove: (id: string) => removeFile(id),
 
     /**
      * A new folder inside `parent`, or at the root. A name clash takes a number
-     * rather than merging with the folder already there. Returns the path so
+     * rather than merging with the directory already there. Returns the path so
      * the caller can open it for rename.
      */
     makeFolder(parent: string | null, name = "New folder"): string {
-      const base = parent === null ? name : `${parent}/${name}`;
-      let path = base;
-      for (let n = 2; folders.some((f) => f.path === path); n++) {
-        path = `${base} ${n}`;
+      const dirs = new Set(state.dirs);
+      let path = join(parent, name);
+      for (let n = 2; dirs.has(path); n++) path = join(parent, `${name} ${n}`);
+
+      patch((current) => ({ ...current, dirs: [...current.dirs, path] }));
+      void vault.makeDir(path);
+      // Made inside a shut folder it would land out of sight.
+      if (parent !== null) {
+        writeIndex({
+          ...state.index,
+          folders: { ...state.index.folders, [parent]: { collapsed: false } },
+        });
       }
-      writeFolders([
-        // Made inside a shut folder it would land out of sight.
-        ...folders.map((f) =>
-          f.path === parent ? { ...f, collapsed: false } : f,
-        ),
-        { path, collapsed: false },
-      ]);
       return path;
     },
 
-    renameFolder(from: string, name: string) {
-      const trimmed = name.trim();
-      if (trimmed === "" || trimmed.includes("/")) return;
-      const parent = parentOf(from);
-      repath(from, parent === null ? trimmed : `${parent}/${trimmed}`);
+    /** Both return the new path: anything selected inside it has moved too. */
+    renameFolder(from: string, name: string): string {
+      const clean = safeName(name);
+      if (clean === folderName(from)) return from;
+      const to = free(state.dirs, parentOf(from), clean);
+      movePath(from, to);
+      return to;
     },
 
-    moveFolder(from: string, parent: string | null) {
-      if (parent !== null && descends(parent, from)) return;
-      const name = folderName(from);
-      repath(from, parent === null ? name : `${parent}/${name}`);
+    moveFolder(from: string, parent: string | null): string {
+      if (parent !== null && descends(parent, from)) return from;
+      if (parentOf(from) === parent) return from;
+      const to = free(state.dirs, parent, folderName(from));
+      movePath(from, to);
+      return to;
     },
 
     setCollapsed: (path: string, collapsed: boolean) =>
-      writeFolders(
-        folders.map((f) => (f.path === path ? { ...f, collapsed } : f)),
-      ),
+      writeIndex({
+        ...state.index,
+        folders: {
+          ...state.index.folders,
+          [path]: { ...state.index.folders[path], collapsed },
+        },
+      }),
 
     /** Takes its subfolders and notes with it, like a group's delete. */
     removeFolder(path: string) {
-      writeFolders(folders.filter((f) => !descends(f.path, path)));
-      setNotes((current) =>
-        current.filter((n) => n.folder === null || !descends(n.folder, path)),
-      );
+      patch((current) => ({
+        ...current,
+        notes: current.notes.filter((n) => !descends(n.rel, path)),
+        dirs: current.dirs.filter((d) => !descends(d, path)),
+      }));
+      void vault.deleteDir(path);
+    },
+
+    /** Point the notebook at a different directory. */
+    async setRoot(path: string, moveExisting: boolean) {
+      flush();
+      await vault.setRoot(path, moveExisting);
+      setSnapshot(await vault.load());
     },
   };
+}
+
+/** A directory path not already in use. */
+function free(dirs: string[], parent: string | null, name: string): string {
+  const used = new Set(dirs);
+  let path = join(parent, name);
+  for (let n = 2; used.has(path); n++) path = join(parent, `${name} ${n}`);
+  return path;
 }

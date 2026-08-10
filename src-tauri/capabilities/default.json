@@ -12,6 +12,8 @@
     "core:window:allow-set-focus",
     "core:window:allow-unminimize",
     "notification:default",
-    "opener:allow-open-url"
+    "opener:allow-open-url",
+    "opener:allow-reveal-item-in-dir",
+    "dialog:allow-open"
   ]
 }
