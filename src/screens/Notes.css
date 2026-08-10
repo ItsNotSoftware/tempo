@@ -2,8 +2,30 @@
    height, so the shell never scrolls the whole notebook as one thing. */
 .notes {
   display: grid;
-  grid-template-columns: 215px minmax(0, 1fr);
+  grid-template-columns: var(--pages, 215px) 0 minmax(0, 1fr);
   height: 100%;
+}
+
+.notes.is-alone {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* Zero-width column on the border, so grabbing it moves nothing. */
+.notes__grip {
+  width: 9px;
+  margin-left: -5px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.notes__grip:hover,
+.notes__grip:active {
+  background: linear-gradient(
+    to right,
+    transparent 3px,
+    var(--accent-line) 3px 5px,
+    transparent 5px
+  );
 }
 
 /* --- The list of pages --- */
@@ -18,11 +40,38 @@
   border-right: 1px solid var(--border);
 }
 
+/* Anywhere that isn't a folder drops to the root. */
+.pages.is-drop {
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+}
+
 .pages__row {
+  position: relative;
   display: flex;
   align-items: center;
   border-radius: 8px;
   transition: background 0.13s ease;
+}
+
+/* One hairline per level of nesting. */
+.pages__row::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 13px;
+  width: calc(var(--depth, 0) * 13px);
+  background-image: repeating-linear-gradient(
+    to right,
+    var(--border) 0 1px,
+    transparent 1px 13px
+  );
+  pointer-events: none;
+}
+
+/* The lifted row stays put so the list can't reflow mid-drag. */
+.pages__row.is-lifted {
+  opacity: 0.4;
 }
 
 .pages__row:hover {
@@ -33,16 +82,66 @@
   background: var(--surface-hover);
 }
 
+.pages__row.is-drop {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+}
+
+.pages__ghost {
+  position: fixed;
+  z-index: 20;
+  margin: 10px 0 0 12px;
+  padding: 4px 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  background: var(--surface-hover);
+  box-shadow: var(--shadow);
+  font-size: 13px;
+  color: var(--text);
+  pointer-events: none;
+}
+
+/* One custom property does every level, not a class per depth. */
 .pages__open {
   display: flex;
   align-items: center;
   gap: 6px;
   flex: 1;
   min-width: 0;
-  padding: 7px 4px 7px 7px;
+  padding: 7px 4px 7px calc(7px + var(--depth, 0) * 13px);
   font-size: 14px;
   color: var(--text-muted);
   text-align: left;
+}
+
+.pages__row--folder .pages__open {
+  gap: 5px;
+  color: var(--text);
+  font-weight: 500;
+}
+
+.pages__row--folder .pages__lead,
+.pages__row--folder .pages__open > svg {
+  color: var(--text-faint);
+  flex-shrink: 0;
+}
+
+/* Borrows the row's metrics so nothing shifts under the caret. */
+.pages__rename {
+  flex: 1;
+  min-width: 0;
+  margin: 3px 3px 3px calc(4px + var(--depth, 0) * 13px);
+  padding: 4px 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--bg);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.pages__rename:focus {
+  outline: none;
+  border-color: var(--accent);
 }
 
 .pages__row.is-on .pages__open {
@@ -89,6 +188,11 @@
   color: var(--text-faint);
 }
 
+.pages__make {
+  display: flex;
+  gap: 1px;
+}
+
 .pages__empty {
   padding: 2px 8px;
   font-size: 13px;
@@ -101,6 +205,12 @@
   gap: 1px;
   flex-shrink: 0;
   padding-right: 3px;
+}
+
+/* Tighter than icon-btn--sm: three of them share the row with the name. */
+.pages__actions > .icon-btn--sm {
+  width: 26px;
+  height: 26px;
 }
 
 .pages__actions > button {
@@ -126,14 +236,66 @@
   overflow-y: auto;
 }
 
+.page__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 -8px 0 -9px;
+}
+
 .page__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   font-size: 21px;
   font-weight: 600;
   letter-spacing: -0.01em;
 }
 
+.page__view {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  padding: 2px;
+  border-radius: 9px;
+  background: var(--surface);
+}
+
+.page__mode {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 9px;
+  border-radius: 7px;
+  font-size: 13px;
+  color: var(--text-faint);
+  transition: background 0.13s ease, color 0.13s ease;
+}
+
+.page__mode:hover {
+  color: var(--text-muted);
+}
+
+.page__mode.is-on {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.page__key {
+  margin: 0 6px 0 4px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
 /* A kept note is named by you, so its title is a field rather than a heading. */
 .page__name {
+  flex: 1;
+  min-width: 0;
   margin: -4px -9px 0;
   padding: 3px 9px;
   border: 1px solid transparent;
@@ -146,6 +308,10 @@
 
 .page__name::placeholder {
   color: var(--text-faint);
+}
+
+.page__name {
+  text-overflow: ellipsis;
 }
 
 .page__name:hover {
@@ -188,7 +354,8 @@
   margin-left: 1px;
 }
 
-.page__body {
+/* Same box for the textarea and the rendered view, so toggling can't reflow. */
+.page__pane {
   flex: 1;
   min-height: 260px;
   width: 100%;
@@ -199,7 +366,15 @@
   background: var(--bg-elevated);
   font-size: 16px;
   line-height: 1.7;
+}
+
+.page__body {
   resize: none;
+}
+
+/* Grows with its content instead of being stretched to the pane. */
+.page__read {
+  flex: 0 0 auto;
 }
 
 .page__body::placeholder {
@@ -214,10 +389,15 @@
 /* Below this the two panes stop being two panes worth having. */
 @media (max-width: 644px) {
   .notes {
-    grid-template-columns: 168px minmax(0, 1fr);
+    grid-template-columns: min(var(--pages, 215px), 168px) 0 minmax(0, 1fr);
   }
 
   .page {
     padding: 20px 18px;
+  }
+
+  /* The lit segment still says which mode is on; the title needs the width. */
+  .page__mode span {
+    display: none;
   }
 }

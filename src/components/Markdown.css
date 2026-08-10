@@ -1,0 +1,180 @@
+/* Rendered markdown, in the same box as the textarea it replaces. */
+
+.md {
+  /* Selection is off app-wide; a read view has to opt back in. */
+  user-select: text;
+}
+
+.md > :first-child {
+  margin-top: 0;
+}
+
+.md > :last-child {
+  margin-bottom: 0;
+}
+
+.md p {
+  margin: 0 0 0.9em;
+}
+
+.md h1,
+.md h2,
+.md h3,
+.md h4,
+.md h5,
+.md h6 {
+  margin: 1.5em 0 0.5em;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+
+.md h1 {
+  font-size: 25px;
+}
+
+.md h2 {
+  font-size: 21px;
+}
+
+.md h3 {
+  font-size: 18px;
+}
+
+.md h4,
+.md h5,
+.md h6 {
+  font-size: 16px;
+  color: var(--text-muted);
+}
+
+.md :is(h1, h2, h3, h4, h5, h6) + :is(h1, h2, h3, h4, h5, h6) {
+  margin-top: 0.7em;
+}
+
+.md ul,
+.md ol {
+  margin: 0 0 0.9em;
+  padding-left: 1.5em;
+}
+
+.md li {
+  margin-bottom: 0.25em;
+}
+
+.md li > ul,
+.md li > ol {
+  margin: 0.25em 0 0;
+}
+
+.md ul {
+  list-style: disc;
+}
+
+.md ol {
+  list-style: decimal;
+}
+
+/* GFM task lists: the checkbox stands in for the bullet. */
+.md li:has(> input[type="checkbox"]) {
+  list-style: none;
+  margin-left: -1.25em;
+}
+
+.md input[type="checkbox"] {
+  width: 13px;
+  height: 13px;
+  margin-right: 7px;
+  accent-color: var(--accent);
+  vertical-align: -1px;
+}
+
+.md blockquote {
+  margin: 0 0 0.9em;
+  padding-left: 14px;
+  border-left: 2px solid var(--accent-line);
+  color: var(--text-muted);
+}
+
+.md a {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px solid var(--accent-line);
+}
+
+.md a:hover {
+  border-bottom-color: var(--accent);
+}
+
+.md strong {
+  font-weight: 650;
+  color: var(--text);
+}
+
+.md em {
+  font-style: italic;
+}
+
+.md del {
+  color: var(--text-faint);
+}
+
+.md code {
+  padding: 1.5px 5px;
+  border-radius: 5px;
+  background: var(--surface);
+  font-family: var(--mono);
+  font-size: 0.86em;
+  color: var(--text);
+}
+
+.md pre {
+  margin: 0 0 0.9em;
+  padding: 11px 13px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg);
+  overflow-x: auto;
+}
+
+.md pre code {
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+.md table {
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  margin: 0 0 0.9em;
+  border-collapse: collapse;
+  overflow-x: auto;
+  font-size: 14.5px;
+}
+
+.md th,
+.md td {
+  padding: 6px 11px;
+  border: 1px solid var(--border);
+  text-align: left;
+}
+
+.md th {
+  background: var(--surface);
+  font-weight: 600;
+}
+
+.md hr {
+  height: 1px;
+  margin: 1.4em 0;
+  border: 0;
+  background: var(--border);
+}
+
+.md img {
+  max-width: 100%;
+  border-radius: 8px;
+}

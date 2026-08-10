@@ -5,6 +5,9 @@ use tauri::WindowEvent;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
+        // A link in a rendered note has to leave for the browser. Opened in the
+        // webview it would navigate the app away, with no way back.
+        .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             TrayIconBuilder::with_id("main")
                 .icon(tauri::include_image!("icons/tray.png"))
