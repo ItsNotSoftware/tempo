@@ -1,5 +1,4 @@
 import { CalendarClock, NotebookPen, Settings, Timer } from "lucide-react";
-import { Mark } from "./Mark";
 import "./Rail.css";
 
 /** Order is the ⌘-digit order too, so the new screen goes on the end rather
@@ -32,10 +31,6 @@ export function Rail({
 }) {
   return (
     <nav className="rail" aria-label="Screens">
-      <span className="rail__mark">
-        <Mark size={17} />
-      </span>
-
       {SCREENS.map(({ id, label, hint, Icon }) => (
         <button
           key={id}

@@ -111,10 +111,11 @@ async function notify(title: string, body: string, event?: Event) {
     if (!granted) return;
     sendNotification(
       event === undefined
-        ? { title, body }
+        ? { title, body, sound: "Default" }
         : {
             title,
             body,
+            sound: "Default",
             actionTypeId: ACTION_TYPE,
             extra: { eventId: event.id },
           },

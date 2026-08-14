@@ -1,5 +1,3 @@
-/* The window keeps its native title bar, so the mark lives up here rather than
-   in a second one of our own. */
 .rail {
   display: flex;
   flex-direction: column;
@@ -10,12 +8,6 @@
   padding: 12px 0;
   border-right: 1px solid var(--border);
   background: var(--bg-elevated);
-}
-
-.rail__mark {
-  display: flex;
-  margin-bottom: 12px;
-  color: var(--text-faint);
 }
 
 .rail .icon-btn {
