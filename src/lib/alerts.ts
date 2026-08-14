@@ -55,33 +55,52 @@ export function useEstimateAlerts(tasks: Task[], groups: Groups, now: number) {
 
     // The same rule the tray paints on, so the menu bar and the notification
     // can never disagree about what "over" means.
-    for (const estimate of estimates(current, tasks, groups, now)) {
-      check(fired.current, estimate);
+    const { fire, next, changed } = crossings(
+      fired.current,
+      estimates(current, tasks, groups, now),
+    );
+    if (!changed) return;
+
+    fired.current = next;
+    writeFired(next);
+    for (const estimate of fire) {
+      void notify(
+        estimate.scope === "task" ? "Over estimate" : "Group over estimate",
+        // `over` doesn't narrow the estimate for TypeScript, but it can't be
+        // null here — nothing without an estimate is ever over one.
+        `${estimate.subject} — ${formatDurationShort(estimate.spentMs)} of ~${formatDurationShort(estimate.estimateMs ?? 0)}`,
+      );
     }
   }, [tasks, groups, now]);
 }
 
 /**
+ * Which estimates have newly crossed, and the fired-set that leaves behind.
+ *
  * Fire once on the way over, and re-arm on the way back under — so raising an
  * estimate past what's been spent means the new one can alert in its turn.
+ * Pure, and the whole of the rule: the caller only notifies and persists.
  */
-function check(fired: Set<string>, estimate: Estimate) {
-  const { key, spentMs, estimateMs } = estimate;
+export function crossings(
+  fired: Set<string>,
+  measured: Estimate[],
+): { fire: Estimate[]; next: Set<string>; changed: boolean } {
+  const next = new Set(fired);
+  const fire: Estimate[] = [];
+  let changed = false;
 
-  if (!estimate.over) {
-    if (fired.delete(key)) writeFired(fired);
-    return;
+  for (const estimate of measured) {
+    if (!estimate.over) {
+      if (next.delete(estimate.key)) changed = true;
+      continue;
+    }
+    if (next.has(estimate.key)) continue;
+    next.add(estimate.key);
+    fire.push(estimate);
+    changed = true;
   }
-  if (fired.has(key)) return;
 
-  fired.add(key);
-  writeFired(fired);
-  void notify(
-    estimate.scope === "task" ? "Over estimate" : "Group over estimate",
-    // `over` doesn't narrow the estimate for TypeScript, but it can't be null
-    // here — nothing without an estimate is ever over one.
-    `${estimate.subject} — ${formatDurationShort(spentMs)} of ~${formatDurationShort(estimateMs ?? 0)}`,
-  );
+  return { fire, next, changed };
 }
 
 /** Asked for at the first alert, so the prompt arrives with a reason attached. */
@@ -116,14 +135,14 @@ const STALE = 10 * 60_000;
 
 const ACTION_TYPE = "event";
 
-interface Due {
+export interface Due {
   key: string;
   at: number;
   starting: boolean;
   event: Event;
 }
 
-function thresholds(events: Event[]): Due[] {
+export function thresholds(events: Event[]): Due[] {
   return events.flatMap((event) => [
     { key: `event:${event.id}:soon`, at: event.start - LEAD, starting: false, event },
     { key: `event:${event.id}:start`, at: event.start, starting: true, event },

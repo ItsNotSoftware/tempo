@@ -188,6 +188,20 @@ export interface Estimate {
  * notification fires on this and the tray paints on it, so there is one rule
  * rather than two that can drift apart.
  */
+/**
+ * What a group has had spent on it: every task carrying its name, all-time.
+ *
+ * All-time and not the day in view, because a group's expected time is for the
+ * whole of it — measuring today's slice against a whole-group budget reads
+ * under from the second day on. The header bar and the alert both come through
+ * here so they can't disagree, same as `estimates()` is one rule for "over".
+ */
+export function groupSpent(tasks: Task[], group: string, now: number): number {
+  return tasks
+    .filter((t) => t.group === group)
+    .reduce((sum, t) => sum + elapsedMs(t, now), 0);
+}
+
 export function estimates(
   running: Task,
   tasks: Task[],
@@ -212,9 +226,7 @@ export function estimates(
         `group:${group}`,
         group,
         groupMeta(groups, group).estimateMs,
-        tasks
-          .filter((t) => t.group === group)
-          .reduce((sum, t) => sum + elapsedMs(t, now), 0),
+        groupSpent(tasks, group, now),
       ),
     );
   }
@@ -329,6 +341,26 @@ function retimed(
   }
 
   return next;
+}
+
+/**
+ * The whole of `setDayTotal`, as a function of its inputs: rework the runs so
+ * the `[from, to)` clock reads `targetMs`, then put them back in shape.
+ *
+ * The seam the rule is tested through — `retimed` and `normalizeSegments` are
+ * only ever reached from here.
+ */
+export function retimedDay(
+  segments: Segment[],
+  from: number,
+  to: number,
+  now: number,
+  targetMs: number,
+): Segment[] {
+  return normalizeSegments(
+    retimed(segments, from, to, now, Math.max(0, targetMs)),
+    now,
+  );
 }
 
 /** Close the open segment, if there is one. */
@@ -637,14 +669,7 @@ export function useTasks() {
     setDayTotal: (id: string, from: number, to: number, targetMs: number) =>
       update(id, (t) => {
         const at = Date.now();
-        const target = Math.max(0, targetMs);
-        return {
-          ...t,
-          segments: normalizeSegments(
-            retimed(t.segments, from, to, at, target),
-            at,
-          ),
-        };
+        return { ...t, segments: retimedDay(t.segments, from, to, at, targetMs) };
       }),
 
     remove: (id: string) =>

@@ -4,6 +4,7 @@ import { TaskCard } from "./TaskCard";
 import {
   elapsedBetween,
   groupMeta,
+  groupSpent,
   groupTone,
   normalizeGroup,
   taskCount,
@@ -74,18 +75,33 @@ export function TaskGroup({
   }, [confirmDelete]);
 
   const meta = groupMeta(api.groups, group);
-  const spent = tasks.reduce(
+
+  // The clock is scoped to the day, like a task's; the estimate is for the
+  // whole group, so the bar reads against every task carrying the name whatever
+  // day it ran on. The tooltip spells out both when they differ.
+  const dayMs = tasks.reduce(
     (sum, task) => sum + elapsedBetween(task, from, to, now),
     0,
   );
+  const totalMs = groupSpent(api.tasks, group, now);
 
   // The group's own estimate is the budget when it has one; otherwise fall back
-  // to what its tasks add up to, so a group is never silently unbudgeted.
-  const summed = tasks.reduce((sum, task) => sum + (task.estimateMs ?? 0), 0);
+  // to what its tasks add up to, so a group is never silently unbudgeted. Summed
+  // over the whole group too — a day's worth of estimates against an all-time
+  // spend would read over on every group that ran yesterday as well.
+  const summed = api.tasks.reduce(
+    (sum, task) => sum + (task.group === group ? (task.estimateMs ?? 0) : 0),
+    0,
+  );
   const own =
     meta.estimateMs !== null && meta.estimateMs > 0 ? meta.estimateMs : null;
   const budget = own ?? (summed > 0 ? summed : null);
-  const ratio = budget === null ? 0 : spent / budget;
+  const ratio = budget === null ? 0 : totalMs / budget;
+
+  const totalTitle =
+    dayMs === totalMs
+      ? `${formatDurationShort(totalMs)} total`
+      : `${formatDurationShort(dayMs)} of ${formatDurationShort(totalMs)} total`;
 
   const name = draft ?? group;
   const editable = !readOnly && !compact;
@@ -225,7 +241,9 @@ export function TaskGroup({
           </div>
         )}
 
-        <time className="group__total">{formatDurationShort(spent)}</time>
+        <time className="group__total" title={totalTitle}>
+          {formatDurationShort(dayMs)}
+        </time>
 
         {editEstimate ? (
           <input
