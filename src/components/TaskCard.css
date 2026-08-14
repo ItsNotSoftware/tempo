@@ -42,6 +42,11 @@
   opacity: 0.55;
 }
 
+/* The lifted row stays put so the list can't reflow mid-drag. */
+.task--lifted {
+  opacity: 0.4;
+}
+
 .task--done:hover,
 .task--done:focus-within {
   opacity: 1;

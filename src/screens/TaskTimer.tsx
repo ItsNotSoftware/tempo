@@ -1,4 +1,4 @@
-import { useState, type RefObject } from "react";
+import { useState, type CSSProperties, type RefObject } from "react";
 import { ChevronRight, Timer } from "lucide-react";
 import { Composer } from "../components/Composer";
 import { DayNav } from "../components/DayNav";
@@ -11,6 +11,7 @@ import {
   isQueued,
   knownGroups,
   parseEntry,
+  taskLabel,
   taskStatus,
   touchesDay,
   type Task,
@@ -35,6 +36,8 @@ export function TaskTimer({ api, now, day, onDay, composer }: TaskTimerProps) {
   const [composerGroup, setComposerGroup] = useState<string | null>(null);
   /** Block under the pointer, in the bar or the list — they highlight together. */
   const [pointed, setPointed] = useState<string | null>(null);
+  /** The task being dragged onto a group, if any. */
+  const [drag, setDrag] = useState<Drag | null>(null);
 
   const current = api.tasks.find((t) => taskStatus(t) === "running") ?? null;
 
@@ -80,6 +83,60 @@ export function TaskTimer({ api, now, day, onDay, composer }: TaskTimerProps) {
     onDay(today);
     // The composer isn't mounted on a past day, so the focus waits a render.
     requestAnimationFrame(() => composer.current?.focus());
+  }
+
+  // --- Filing by drag ---
+  //
+  // Pointer events, not HTML5 drag-and-drop — the webview keeps
+  // `dragDropEnabled: false`, and the screenshot harness can only drive a
+  // real mouse.
+
+  /** The group under the cursor, or null if this task is already in it. */
+  function targetAt(x: number, y: number, task: Task) {
+    const el = document.elementFromPoint(x, y)?.closest("[data-drop]");
+    const group = el?.getAttribute("data-drop") ?? null;
+    return group === null || group === task.group ? null : group;
+  }
+
+  function lift(e: React.PointerEvent, task: Task) {
+    if (e.button !== 0) return;
+    // A button keeps its own click; the name field is most of the row's
+    // surface, so it stays a valid drag start too — going live below clears
+    // whatever focus and selection the mousedown left on it.
+    if ((e.target as HTMLElement).closest("button")) return;
+    const from = { x: e.clientX, y: e.clientY };
+    let live = false;
+
+    const move = (m: PointerEvent) => {
+      // Slack, or every click on a row would start a drag.
+      if (!live && Math.hypot(m.clientX - from.x, m.clientY - from.y) < 5) return;
+      if (!live) {
+        live = true;
+        window.getSelection()?.removeAllRanges();
+        (document.activeElement as HTMLElement | null)?.blur();
+      }
+      setDrag({
+        id: task.id,
+        label: taskLabel(task),
+        x: m.clientX,
+        y: m.clientY,
+        over: targetAt(m.clientX, m.clientY, task),
+      });
+    };
+
+    const up = (u: PointerEvent) => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      setDrag(null);
+      if (!live) return;
+      const onto = targetAt(u.clientX, u.clientY, task);
+      // Releasing over a row would otherwise also fire its click.
+      window.addEventListener("click", swallow, { capture: true, once: true });
+      if (onto !== null) api.setGroup(task.id, onto);
+    };
+
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
   }
 
   return (
@@ -165,6 +222,8 @@ export function TaskTimer({ api, now, day, onDay, composer }: TaskTimerProps) {
                   pointKey={block.key}
                   onPoint={setPointed}
                   readOnly={!isToday}
+                  onLift={isToday ? lift : undefined}
+                  lifted={drag?.id === block.tasks[0].id}
                 />
               ) : (
                 <TaskGroup
@@ -180,6 +239,9 @@ export function TaskTimer({ api, now, day, onDay, composer }: TaskTimerProps) {
                   onAddTo={addTo}
                   onDelete={dropGroup}
                   readOnly={!isToday}
+                  isDropTarget={drag?.over === block.group}
+                  onLift={isToday ? lift : undefined}
+                  liftedId={drag?.id ?? null}
                 />
               ),
             )}
@@ -217,6 +279,8 @@ export function TaskTimer({ api, now, day, onDay, composer }: TaskTimerProps) {
                       pointKey={block.key}
                       onPoint={setPointed}
                       readOnly={!isToday}
+                      onLift={isToday ? lift : undefined}
+                      lifted={drag?.id === block.tasks[0].id}
                     />
                   ) : (
                     <TaskGroup
@@ -231,6 +295,9 @@ export function TaskTimer({ api, now, day, onDay, composer }: TaskTimerProps) {
                       onPoint={setPointed}
                       readOnly={!isToday}
                       compact
+                      isDropTarget={drag?.over === block.group}
+                      onLift={isToday ? lift : undefined}
+                      liftedId={drag?.id ?? null}
                     />
                   ),
                 )}
@@ -238,9 +305,35 @@ export function TaskTimer({ api, now, day, onDay, composer }: TaskTimerProps) {
           )}
         </>
       )}
+
+      {drag !== null && (
+        <span
+          className="task-ghost"
+          style={{ left: drag.x / ZOOM, top: drag.y / ZOOM } as CSSProperties}
+        >
+          {drag.label}
+        </span>
+      )}
     </div>
   );
 }
+
+interface Drag {
+  id: string;
+  label: string;
+  x: number;
+  y: number;
+  /** Group under the cursor, or null when nowhere droppable. */
+  over: string | null;
+}
+
+/** Matches the `zoom` on `.app`: a client x is that many px too many. */
+const ZOOM = 1.15;
+
+const swallow = (e: MouseEvent) => {
+  e.stopPropagation();
+  e.preventDefault();
+};
 
 /** How many blocks get their own slice before the tail is pooled. */
 const SEGMENTS = 6;

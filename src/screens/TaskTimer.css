@@ -4,6 +4,20 @@
   padding: 28px 26px 64px;
 }
 
+.task-ghost {
+  position: fixed;
+  z-index: 20;
+  margin: 10px 0 0 12px;
+  padding: 4px 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  background: var(--surface-hover);
+  box-shadow: var(--shadow);
+  font-size: 13px;
+  color: var(--text);
+  pointer-events: none;
+}
+
 /* --- Header --- */
 
 .timer__head {

@@ -12,6 +12,12 @@
   border-color: var(--border);
 }
 
+/* A dragged task is over this group, ready to be dropped into it. */
+.group.is-drop {
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+}
+
 .group__head {
   display: flex;
   align-items: center;

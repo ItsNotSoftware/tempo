@@ -590,6 +590,11 @@ export function useTasks() {
         };
       }),
 
+    /** Files an existing task under a group by drag — sets the field
+     *  directly, unlike `rename`, which only moves it on a typed key. */
+    setGroup: (id: string, group: string | null) =>
+      update(id, (t) => ({ ...t, group })),
+
     /** Rewrites every member at once; `null` drops them back to no group. */
     renameGroup: (from: string, to: string | null) => {
       setTasks((current) =>

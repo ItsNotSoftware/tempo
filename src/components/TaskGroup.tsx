@@ -43,6 +43,12 @@ interface TaskGroupProps {
    * one drops its controls and its estimate rather than reading as a second copy.
    */
   compact?: boolean;
+  /** A dragged task is over this group, ready to be filed under it. */
+  isDropTarget?: boolean;
+  /** Picking a task under this group up to file it under a different one. */
+  onLift?: (e: React.PointerEvent, task: Task) => void;
+  /** The task currently being dragged, wherever it started. */
+  liftedId?: string | null;
 }
 
 /** A group and the tasks under it, rolled up to one line you can read at a glance. */
@@ -59,6 +65,9 @@ export function TaskGroup({
   onDelete,
   readOnly = false,
   compact = false,
+  isDropTarget = false,
+  onLift,
+  liftedId = null,
 }: TaskGroupProps) {
   const [collapsed, setCollapsed] = useState(false);
   /** Held while editing so a rename lands once, not once per keystroke. */
@@ -125,7 +134,10 @@ export function TaskGroup({
 
   return (
     <section
-      className={`group${marked ? " is-marked" : ""}${compact ? " is-compact" : ""}`}
+      className={`group${marked ? " is-marked" : ""}${compact ? " is-compact" : ""}${
+        isDropTarget ? " is-drop" : ""
+      }`}
+      data-drop={onLift ? group : undefined}
       onMouseEnter={() => onPoint(group)}
       onMouseLeave={() => onPoint(null)}
     >
@@ -313,6 +325,8 @@ export function TaskGroup({
               pointKey={group}
               onPoint={onPoint}
               readOnly={readOnly}
+              onLift={onLift}
+              lifted={liftedId === task.id}
             />
           ))}
         </div>

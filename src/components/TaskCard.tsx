@@ -33,6 +33,10 @@ interface TaskCardProps {
   onPoint: (key: string | null) => void;
   /** A past day is a record, not a workspace. */
   readOnly?: boolean;
+  /** Picking the row up to file it under a group by drag. */
+  onLift?: (e: React.PointerEvent, task: Task) => void;
+  /** This is the task currently being dragged. */
+  lifted?: boolean;
 }
 
 export function TaskCard({
@@ -45,6 +49,8 @@ export function TaskCard({
   pointKey,
   onPoint,
   readOnly = false,
+  onLift,
+  lifted = false,
 }: TaskCardProps) {
   const status = taskStatus(task);
   const [showNotes, setShowNotes] = useState(false);
@@ -83,9 +89,13 @@ export function TaskCard({
 
   return (
     <article
-      className={`task task--${status}${marked ? " task--marked" : ""}`}
+      data-row={task.name}
+      className={`task task--${status}${marked ? " task--marked" : ""}${
+        lifted ? " task--lifted" : ""
+      }`}
       onMouseEnter={() => onPoint(pointKey)}
       onMouseLeave={() => onPoint(null)}
+      onPointerDown={onLift && ((e) => onLift(e, task))}
     >
       <div className="task__row">
         {readOnly ? (
