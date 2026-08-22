@@ -1,15 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
+  dayOf,
   dayPages,
   descends,
   folderContents,
   folderName,
   folderTree,
   keptNotes,
+  migrateDayPaths,
   rootNotes,
   type Folder,
   type Note,
 } from "./notes";
+import { dayFile, type Snapshot } from "./vault";
 
 const day = (y: number, m: number, d: number) => new Date(y, m - 1, d).getTime();
 
@@ -130,5 +133,118 @@ describe("descends / folderContents", () => {
   it("names a folder by its last segment", () => {
     expect(folderName("Work/Specs")).toBe("Specs");
     expect(folderName("Work")).toBe("Work");
+  });
+});
+
+describe("dayFile", () => {
+  it("nests under the year and month, zero-padded", () => {
+    expect(dayFile(day(2026, 8, 5))).toBe("Days/2026/08/2026-08-05.md");
+  });
+
+  it("zero-pads a two-digit month and day the same way", () => {
+    expect(dayFile(day(2026, 12, 25))).toBe("Days/2026/12/2026-12-25.md");
+  });
+});
+
+describe("dayOf", () => {
+  it("reads the nested shape", () => {
+    expect(dayOf("Days/2026/08/2026-08-05.md")).toBe(day(2026, 8, 5));
+  });
+
+  // An un-migrated file has to still read as a day page — otherwise it turns
+  // up on the shelf as a kept note called "2026-08-05".
+  it("reads the legacy flat shape", () => {
+    expect(dayOf("Days/2026-08-05.md")).toBe(day(2026, 8, 5));
+  });
+
+  it("rejects a kept note", () => {
+    expect(dayOf("Notes/Deploy steps.md")).toBeNull();
+  });
+
+  it("rejects a date-shaped name outside Days", () => {
+    expect(dayOf("Personal/2026-08-05.md")).toBeNull();
+  });
+
+  it("rejects a nested Days file that isn't a date", () => {
+    expect(dayOf("Days/2026/08/notes.md")).toBeNull();
+  });
+});
+
+describe("migrateDayPaths", () => {
+  const snapshot = (
+    notes: { rel: string; body?: string; modified?: number }[],
+    index: Partial<Snapshot["index"]> = {},
+  ): Snapshot => ({
+    root: "",
+    dirs: [],
+    notes: notes.map((n) => ({ body: "", modified: 0, ...n })),
+    index: { notes: {}, folders: {}, ...index },
+  });
+
+  it("moves a legacy day page under its year and month, rekeying its index entry", () => {
+    const before = snapshot([{ rel: "Days/2026-08-05.md", body: "hi" }], {
+      notes: { "Days/2026-08-05.md": { createdAt: 5, pinned: false } },
+    });
+
+    const { snapshot: after, moves } = migrateDayPaths(before);
+
+    expect(moves).toEqual([
+      { from: "Days/2026-08-05.md", to: "Days/2026/08/2026-08-05.md" },
+    ]);
+    expect(after.notes).toEqual([{ rel: "Days/2026/08/2026-08-05.md", body: "hi", modified: 0 }]);
+    expect(after.index.notes).toEqual({
+      "Days/2026/08/2026-08-05.md": { createdAt: 5, pinned: false },
+    });
+  });
+
+  it("leaves an already-migrated day page alone", () => {
+    const before = snapshot([{ rel: "Days/2026/08/2026-08-05.md" }]);
+
+    const { snapshot: after, moves } = migrateDayPaths(before);
+
+    expect(moves).toEqual([]);
+    expect(after).toBe(before);
+  });
+
+  it("leaves kept notes completely untouched", () => {
+    const before = snapshot([
+      { rel: "Notes/Deploy steps.md", body: "kept" },
+      { rel: "Days/2026-08-05.md", body: "day" },
+    ]);
+
+    const { snapshot: after } = migrateDayPaths(before);
+
+    expect(after.notes.find((n) => n.rel === "Notes/Deploy steps.md")).toBe(before.notes[0]);
+  });
+
+  // The nested path already has a file on it — leave the legacy one where it
+  // is rather than clobber whatever's there.
+  it("skips a move whose target is already taken", () => {
+    const before = snapshot([
+      { rel: "Days/2026-08-05.md", body: "old" },
+      { rel: "Days/2026/08/2026-08-05.md", body: "new" },
+    ]);
+
+    const { snapshot: after, moves } = migrateDayPaths(before);
+
+    expect(moves).toEqual([]);
+    expect(after.notes.map((n) => n.rel).sort()).toEqual([
+      "Days/2026-08-05.md",
+      "Days/2026/08/2026-08-05.md",
+    ]);
+  });
+
+  it("migrates more than one legacy page in a single pass", () => {
+    const before = snapshot([
+      { rel: "Days/2026-08-05.md" },
+      { rel: "Days/2026-08-06.md" },
+    ]);
+
+    const { moves } = migrateDayPaths(before);
+
+    expect(moves.map((m) => m.to).sort()).toEqual([
+      "Days/2026/08/2026-08-05.md",
+      "Days/2026/08/2026-08-06.md",
+    ]);
   });
 });

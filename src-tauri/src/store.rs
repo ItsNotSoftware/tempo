@@ -160,7 +160,10 @@ fn walk(root: &Path, dir: &Path, notes: &mut Vec<FileNote>, dirs: &mut Vec<Strin
             .replace('\\', "/");
 
         if path.is_dir() {
-            if rel != DAYS_DIR {
+            // Days/2026 and Days/2026/08 are the year/month nesting, not
+            // folders the user made — a bare `starts_with("Days")` would also
+            // swallow a folder someone legitimately named "Daysheets".
+            if rel != DAYS_DIR && !rel.starts_with("Days/") {
                 dirs.push(rel);
             }
             walk(root, &path, notes, dirs)?;
@@ -211,10 +214,34 @@ pub fn write_index(app: AppHandle, json: String) -> Res<()> {
 #[tauri::command]
 pub fn delete_note(app: AppHandle, rel: String) -> Res<()> {
     let path = resolve(&app, &rel)?;
-    match fs::remove_file(path) {
-        Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(err(e)),
-        _ => Ok(()),
+    match fs::remove_file(&path) {
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(err(e)),
+        _ => {}
     }
+
+    // A day page lives in Days/<year>/<month>/, so clearing the last one in a
+    // month can leave the month empty, and then the year. "Only create those
+    // folders if a day page exists" cuts both ways. Gated on the deleted path
+    // being under Days: a folder the user made themselves on the shelf is
+    // never there, so it's never at risk of being walked into and pruned.
+    if rel.starts_with("Days/") {
+        let days_root = read_root(&app)?.join(DAYS_DIR);
+        let mut dir = path.parent();
+        while let Some(d) = dir {
+            if d == days_root || !d.starts_with(&days_root) {
+                break;
+            }
+            let Ok(mut entries) = fs::read_dir(d) else {
+                break;
+            };
+            if entries.next().is_some() || fs::remove_dir(d).is_err() {
+                break;
+            }
+            dir = d.parent();
+        }
+    }
+
+    Ok(())
 }
 
 /// Used for filing, renaming and moving alike — a note and a folder are the
