@@ -15,7 +15,6 @@ import {
   StateEffect,
   StateField,
   type EditorSelection,
-  type Extension,
   type Range,
   type Text,
 } from "@codemirror/state";
@@ -590,7 +589,30 @@ function fences(doc: Text, node: TreeNode, marks: Range<Decoration>[]) {
   if (before >= after && before < close.to) marks.push(HIDE.range(before, close.to));
 }
 
-const blocks: Extension = EditorView.decorations.compute(
-  [focused, "doc", "selection"],
-  blockSet,
-);
+/**
+ * A field rather than a facet computed from the document and the selection.
+ * Markdown parses in the background on a long page and reports its progress
+ * through transactions that change neither — so a facet keyed on those two
+ * never hears the tree arrive, and every table, image and fence below the
+ * first parse budget sits as raw pipes and visible backticks until you happen
+ * to type. A field is handed the transaction itself, and the tree moving is
+ * the signal, the same one `live` watches for.
+ *
+ * It stays state-derived either way: a block widget, and a replacement that
+ * swallows a line break, are not a view plugin's to emit.
+ *
+ * Declared after `focused` and after `markdown()` in the editor's extensions,
+ * because both are read here and a field only sees the ones built before it.
+ */
+const blocks = StateField.define<DecorationSet>({
+  create: blockSet,
+  update(value, tr) {
+    const moved =
+      tr.docChanged ||
+      tr.startState.selection !== tr.state.selection ||
+      tr.startState.field(focused) !== tr.state.field(focused) ||
+      syntaxTree(tr.startState) !== syntaxTree(tr.state);
+    return moved ? blockSet(tr.state) : value;
+  },
+  provide: (field) => EditorView.decorations.from(field),
+});
