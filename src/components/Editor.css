@@ -1,0 +1,120 @@
+/* Live markdown: the page is rendered and editable at once, so every rule in
+   here has to survive a caret being put through the middle of it. The colours
+   CodeMirror builds for itself are in the theme in `Editor.tsx`; these are the
+   shapes, and they read against `Markdown.css` on purpose — the same page
+   should not change size when it is drawn by the other renderer. */
+
+.editor {
+  height: 100%;
+}
+
+/* --- Headings ---
+   Padding rather than margin: CodeMirror measures a line's box, and a margin
+   is the one part of it that box doesn't carry. */
+
+.cm-md-h1,
+.cm-md-h2,
+.cm-md-h3,
+.cm-md-h4,
+.cm-md-h5,
+.cm-md-h6 {
+  padding-top: 16px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+
+.cm-md-h1 {
+  font-size: 25px;
+}
+
+.cm-md-h2 {
+  font-size: 21px;
+}
+
+.cm-md-h3 {
+  font-size: 18px;
+}
+
+.cm-md-h4,
+.cm-md-h5,
+.cm-md-h6 {
+  font-size: 16px;
+  color: var(--text-muted);
+}
+
+/* --- Inline --- */
+
+.cm-md-strong {
+  font-weight: 650;
+  color: var(--text);
+}
+
+.cm-md-em {
+  font-style: italic;
+}
+
+.cm-md-strike {
+  text-decoration: line-through;
+  color: var(--text-faint);
+}
+
+.cm-md-code {
+  padding: 1.5px 5px;
+  border-radius: 5px;
+  background: var(--surface);
+  font-family: var(--mono);
+  font-size: 0.86em;
+  color: var(--text);
+}
+
+.cm-md-link {
+  color: var(--accent);
+  border-bottom: 1px solid var(--accent-line);
+}
+
+/* Only a link still wearing its rendering is one a click opens. */
+.cm-md-link[data-href] {
+  cursor: pointer;
+}
+
+.cm-md-link[data-href]:hover {
+  border-bottom-color: var(--accent);
+}
+
+/* --- Lists --- */
+
+.cm-md-bullet {
+  color: var(--text-faint);
+}
+
+.cm-md-check {
+  width: 13px;
+  height: 13px;
+  margin: 0 4px 0 0;
+  accent-color: var(--accent);
+  vertical-align: -1px;
+  cursor: pointer;
+}
+
+/* --- Blocks ---
+   A quote and a fence dress every line they cover, because a line is the
+   largest thing a view plugin is allowed to decorate. */
+
+.cm-md-quote {
+  padding-left: 14px;
+  border-left: 2px solid var(--accent-line);
+  color: var(--text-muted);
+}
+
+.cm-md-fence {
+  padding: 0 13px;
+  background: var(--bg);
+  font-family: var(--mono);
+  font-size: 13.5px;
+}
+
+/* A table or an image, handed to the read view's renderer. */
+.cm-md-block {
+  padding: 6px 0;
+}

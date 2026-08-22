@@ -354,7 +354,7 @@
   margin-left: 1px;
 }
 
-/* Same box for the textarea and the rendered view, so toggling can't reflow. */
+/* Same box for the textarea and the live view, so toggling can't reflow. */
 .page__pane {
   flex: 1;
   min-height: 260px;
@@ -372,16 +372,13 @@
   resize: none;
 }
 
-/* Grows with its content instead of being stretched to the pane. */
-.page__read {
-  flex: 0 0 auto;
-}
-
 .page__body::placeholder {
   color: var(--text-faint);
 }
 
-.page__body:focus {
+/* The live view is written in, so it answers to focus the same way. */
+.page__body:focus,
+.page__live:focus-within {
   outline: none;
   border-color: var(--border-strong);
 }
