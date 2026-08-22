@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { parseEntry, taskStatus, type TasksApi } from "./tasks";
+import { elapsedMs, groupTone, parseEntry, taskStatus, type TasksApi } from "./tasks";
 
 const EVENTS_KEY = "tempo.events.v1";
 
@@ -17,6 +17,9 @@ export interface Event {
   durationMs: number;
   /** The task this event times, made the first time it's started. */
   taskId: string | null;
+  /** An explicit pick into `--group-1`…`--group-6`. `null` means derived —
+   *  see `eventTone`, which reuses the same six hues rather than growing them. */
+  color: number | null;
   createdAt: number;
 }
 
@@ -33,6 +36,16 @@ function readEvents(): Event[] {
 
 export function eventEnd(event: Event): number {
   return event.start + event.durationMs;
+}
+
+/**
+ * The colour a booking reads as: a pick made on the event itself first, then
+ * its group's hash — the same one the timer's dot uses, so the two screens
+ * can't disagree — then, for a booking with no group at all, its own title's.
+ * No booking is ever grey: something always hashes to one of the six hues.
+ */
+export function eventTone(event: Event): number {
+  return event.color ?? groupTone(event.group ?? event.title);
 }
 
 /**
@@ -56,6 +69,30 @@ export function nextEvent(events: Event[], now: number): Event | null {
 }
 
 /**
+ * Made the first time an event goes onto the clock, whichever way it gets
+ * there — title, group and estimate straight from the booking, so `startEvent`
+ * and `logEvent` can't ever give the same meeting two different tasks.
+ */
+function linkedTask(event: Event, api: TasksApi, events: EventsApi): string {
+  const title = event.title.trim() === "" ? "Untitled" : event.title.trim();
+  const id = api.add(title, event.group);
+  if (event.durationMs > 0) api.setEstimate(id, event.durationMs);
+  events.link(event.id, id);
+  return id;
+}
+
+/**
+ * The task an event is already timing, or `null` if it never made one — or
+ * if it did and that task has since been deleted, which reads the same as
+ * never having made one.
+ */
+function findLinked(event: Event, api: TasksApi) {
+  return event.taskId === null
+    ? null
+    : (api.tasks.find((t) => t.id === event.taskId) ?? null);
+}
+
+/**
  * Put the clock on an event. The one path in — the row's play button, the
  * notification's action and the tray menu all come through here, so a meeting
  * can never end up with two tasks for it.
@@ -66,27 +103,50 @@ export function nextEvent(events: Event[], now: number): Event | null {
  * in the app rather than needing one of its own.
  */
 export function startEvent(event: Event, api: TasksApi, events: EventsApi) {
-  const linked =
-    event.taskId === null
-      ? null
-      : (api.tasks.find((t) => t.id === event.taskId) ?? null);
-
+  const linked = findLinked(event, api);
   if (linked !== null) {
     api.start(linked.id);
     return;
   }
+  api.start(linkedTask(event, api, events));
+}
 
-  const title = event.title.trim() === "" ? "Untitled" : event.title.trim();
-  const id = api.add(title, event.group);
-  if (event.durationMs > 0) api.setEstimate(id, event.durationMs);
-  events.link(event.id, id);
-  api.start(id);
+/**
+ * Log a window that already happened rather than starting one now — the
+ * second sanctioned way onto the clock, and the mirror of `startEvent`: that
+ * puts the clock on now, this puts a finished window on the books, so walking
+ * into a meeting and forgetting to press ▶ doesn't lose the hour.
+ *
+ * Records `[event.start, min(eventEnd(event), now))` — nothing to log before
+ * an event has started, and nothing past the minute it's actually reached.
+ * Makes the task on first log exactly as `startEvent` would, so a booking
+ * still never ends up with two tasks whichever button finds it first.
+ */
+export function logEvent(
+  event: Event,
+  api: TasksApi,
+  events: EventsApi,
+  now: number,
+) {
+  const to = Math.min(eventEnd(event), now);
+  if (to <= event.start) return;
+
+  const linked = findLinked(event, api);
+  const id = linked !== null ? linked.id : linkedTask(event, api, events);
+  api.record(id, event.start, to);
 }
 
 /** Is this event's task the one currently counting? */
 export function isTracking(event: Event, api: TasksApi): boolean {
   const task = api.tasks.find((t) => t.id === event.taskId);
   return task !== undefined && taskStatus(task) === "running";
+}
+
+/** Has the event's linked task already got time on it? One log per booking —
+ *  otherwise ▶ and Log would fight over the same window. */
+export function isLogged(event: Event, api: TasksApi, now: number): boolean {
+  const task = api.tasks.find((t) => t.id === event.taskId);
+  return task !== undefined && elapsedMs(task, now) > 0;
 }
 
 export type EventsApi = ReturnType<typeof useEvents>;
@@ -121,6 +181,7 @@ export function useEvents() {
           start,
           durationMs,
           taskId: null,
+          color: null,
           createdAt: Date.now(),
         },
       ]);
@@ -142,6 +203,10 @@ export function useEvents() {
 
     link: (id: string, taskId: string | null) =>
       edit(id, (e) => ({ ...e, taskId })),
+
+    /** `null` drops back to derived — the group's hash, or the title's. */
+    setColor: (id: string, color: number | null) =>
+      edit(id, (e) => ({ ...e, color })),
 
     remove: (id: string) =>
       setEvents((current) => current.filter((e) => e.id !== id)),

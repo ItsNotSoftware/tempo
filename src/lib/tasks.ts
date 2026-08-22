@@ -363,6 +363,27 @@ export function retimedDay(
   );
 }
 
+/**
+ * Put a window that already happened onto the books: append `[from, to)` as a
+ * closed run, close any run still open first — logging a meeting is what
+ * marks the task done, so nothing can be left counting behind it — and put
+ * the result back in shape through the same seam `retimedDay` uses.
+ *
+ * The mirror of `retimedDay`: that rule corrects a run already on the books,
+ * this adds one that never made it on. `record` is the only caller.
+ */
+export function recorded(
+  segments: Segment[],
+  from: number,
+  to: number,
+  now: number,
+): Segment[] {
+  const stopped = segments.map((s) =>
+    s.end === null ? { start: s.start, end: Math.max(s.start, now) } : s,
+  );
+  return normalizeSegments([...stopped, { start: from, end: to }], now);
+}
+
 /** Close the open segment, if there is one. */
 function closed(task: Task, at: number): Task {
   const last = task.segments[task.segments.length - 1];
@@ -675,6 +696,20 @@ export function useTasks() {
       update(id, (t) => {
         const at = Date.now();
         return { ...t, segments: retimedDay(t.segments, from, to, at, targetMs) };
+      }),
+
+    /**
+     * Log a run that already happened, the mirror of `start`: that puts the
+     * clock on now, this puts a finished window on the books. `completedAt`
+     * lands on `to`, the event's own end, not on whenever you got round to
+     * logging it — `touchesDay` reads `completedAt`, and completing at
+     * `Date.now()` would file yesterday's meeting onto today's task list
+     * showing 0m, with its actual time sitting on yesterday.
+     */
+    record: (id: string, from: number, to: number) =>
+      update(id, (t) => {
+        const at = Date.now();
+        return { ...t, segments: recorded(t.segments, from, to, at), completedAt: to };
       }),
 
     remove: (id: string) =>

@@ -83,6 +83,7 @@ describe("thresholds", () => {
     start: at(10),
     durationMs: HOUR,
     taskId: null,
+    color: null,
     createdAt: at(9),
   };
 

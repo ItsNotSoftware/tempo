@@ -1,6 +1,9 @@
 /* Position comes from the screen — this only says what a booking looks like.
-   `--tone` is its group's colour, set inline, standing in for the name the way
-   the dot does everywhere else. */
+   `--tone` / `--tone-soft` are its colour, set inline from `eventTone`,
+   standing in for the name the way the dot does everywhere else. The fill
+   is what makes it read as a coloured block rather than a grey one with a
+   coloured edge — the edge stays too, for the moment the fill gets overridden
+   below. */
 .event {
   position: absolute;
   display: flex;
@@ -11,7 +14,7 @@
   border: 1px solid var(--border);
   border-left: 3px solid var(--tone);
   border-radius: 8px;
-  background: var(--bg-elevated);
+  background: var(--tone-soft);
   transition:
     background 0.15s ease,
     border-color 0.15s ease,
@@ -99,6 +102,18 @@
   opacity: 1;
 }
 
+/* Already logged: still reachable on hover, same as any other row action, but
+   reading as inert rather than inviting a click that would do nothing. */
+.event__actions > button:disabled {
+  cursor: default;
+  color: var(--text-faint);
+}
+
+.event__actions > button:disabled:hover {
+  background: none;
+  color: var(--text-faint);
+}
+
 /* The length gives its room to the buttons rather than wrapping the row. */
 .event:hover .event__len,
 .event:focus-within .event__len {
@@ -117,12 +132,21 @@
   box-shadow: var(--shadow);
 }
 
+/* Two rows — the fields, then the colour — rather than one that would have to
+   wrap; `.event--editing` already grows the block over the grid for the room. */
 .event__edit {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  padding: 3px 0;
+}
+
+.event__edit-row {
   display: flex;
   align-items: center;
   gap: 6px;
   width: 100%;
-  padding: 3px 0;
 }
 
 .event__field {
@@ -151,4 +175,36 @@
   padding: 0 12px;
   border-radius: 8px;
   font-size: 13.5px;
+}
+
+/* The colour picker: six hues plus a way back to whatever it'd derive. */
+.event__colors {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding-left: 2px;
+}
+
+.event__swatch {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  background: var(--swatch);
+  transition:
+    border-color 0.13s ease,
+    transform 0.13s ease;
+}
+
+.event__swatch:hover {
+  transform: scale(1.15);
+}
+
+.event__swatch.is-selected {
+  border-color: var(--text);
+}
+
+.event__reset {
+  margin-left: 2px;
 }
