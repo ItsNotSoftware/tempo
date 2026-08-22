@@ -282,10 +282,17 @@ export function useNotes() {
       const { snapshot: migrated, moves } = migrateDayPaths(loaded);
       // Fire the moves alongside setSnapshot rather than awaiting them — the
       // snapshot returned by migrateDayPaths already reflects where they land.
+      //
+      // `allSettled`, because the index has to be written whatever happens: one
+      // move failing under `all` would take the rekeyed metadata for every page
+      // that *did* move down with it. A page whose move failed is left flat,
+      // which `dayOf` still reads, and loses only its `.tempo.json` entry —
+      // where `createdAt` falls back to the file's mtime and a day page is
+      // never pinned anyway.
       if (moves.length > 0) {
-        void Promise.all(moves.map(({ from, to }) => vault.movePath(from, to))).then(
-          () => vault.writeIndex(migrated.index),
-        );
+        void Promise.allSettled(
+          moves.map(({ from, to }) => vault.movePath(from, to)),
+        ).then(() => vault.writeIndex(migrated.index));
       }
       setSnapshot(migrated);
     });
