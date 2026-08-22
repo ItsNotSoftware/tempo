@@ -10,7 +10,7 @@ import {
 import { TrayIcon } from "@tauri-apps/api/tray";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { eventsOn, nextEvent, type Event } from "./events";
-import { paint } from "./mark";
+import { DRAIN_STEPS, drainBucket, paint } from "./mark";
 import {
   elapsedBetween,
   estimates,
@@ -19,6 +19,7 @@ import {
   taskLabel,
   taskStatus,
   touchesDay,
+  type Estimate,
   type Task,
   type TasksApi,
 } from "./tasks";
@@ -105,16 +106,24 @@ export function useTray(
 
   // What the title can't say at a glance. Same rule the notification fires on,
   // so the icon and the alert can't disagree about what "over" means.
-  const over =
-    current !== null &&
-    estimates(current, api.tasks, api.groups, now).some((e) => e.over);
+  const estimated: Estimate[] =
+    current === null ? [] : estimates(current, api.tasks, api.groups, now);
+  const over = estimated.some((e) => e.over);
   const look: Look = current === null ? "idle" : over ? "over" : "running";
+  // The task's own estimate, else its group's — the same fallback order
+  // `estimated` already comes back in. Neither means there's no figure to
+  // drain against.
+  const progress = drainProgress(estimated);
+  // Quantised so the icon only repaints on a real change of how full the
+  // glass looks, same discipline as the title and menu settling for a minute
+  // at a time rather than the tick.
+  const bucket = drainBucket(progress);
 
   useEffect(() => {
     if (tray === null) return;
     let live = true;
 
-    void icon(look)
+    void icon(look, bucket)
       .then((image) => {
         if (!live) return;
         // Both at once: setting the image and the template flag separately
@@ -131,7 +140,7 @@ export function useTray(
       live = false;
     };
     // Three values, so this fires on a real change of state and never on the tick.
-  }, [tray, look]);
+  }, [tray, look, bucket]);
 
   const startable = api.tasks
     .filter(
@@ -182,20 +191,23 @@ export function useTray(
 }
 
 /**
- * At most three icons ever exist. An `Image` is a resource on the Rust side, so
- * each look is drawn once and kept rather than minted every time the state
- * changes — and a rejected promise stays in the map, so a failure happens once
- * and quietly rather than on every transition for the rest of the day.
+ * At most ~18 icons ever exist: three looks, each at up to `DRAIN_STEPS + 1`
+ * drain levels (idle never varies, since it never has a running task to
+ * measure). An `Image` is a resource on the Rust side, so each combination is
+ * drawn once and kept rather than minted every time the state changes — and a
+ * rejected promise stays in the map, so a failure happens once and quietly
+ * rather than on every transition for the rest of the day.
  */
-const icons = new Map<Look, Promise<Image>>();
+const icons = new Map<string, Promise<Image>>();
 
-function icon(look: Look): Promise<Image> {
-  const drawn = icons.get(look) ?? draw(look);
-  icons.set(look, drawn);
+function icon(look: Look, bucket: number | null): Promise<Image> {
+  const key = `${look}:${bucket ?? "plain"}`;
+  const drawn = icons.get(key) ?? draw(look, bucket);
+  icons.set(key, drawn);
   return drawn;
 }
 
-async function draw(look: Look): Promise<Image> {
+async function draw(look: Look, bucket: number | null): Promise<Image> {
   // A template is alpha-only: macOS tints the idle glyph to match the menu bar
   // itself, so the colour here is only something opaque to carry the shape.
   const color =
@@ -205,13 +217,31 @@ async function draw(look: Look): Promise<Image> {
         ? themeColor("--danger", "#ff6259")
         : themeColor("--accent", "#6c9bff");
 
-  const ctx = paint(document.createElement("canvas"), color, ICON_PX);
+  // The bucket is already the quantised figure; turning it back into a
+  // fraction here, rather than passing the raw progress through, is what
+  // makes two calls for the same bucket paint pixel-identical icons.
+  const progress = bucket === null ? null : bucket / DRAIN_STEPS;
+  const ctx = paint(document.createElement("canvas"), color, ICON_PX, progress);
   if (ctx === null) throw new Error("no 2d context for the tray icon");
 
   const { data } = ctx.getImageData(0, 0, ICON_PX, ICON_PX);
   // Canvas hands back un-premultiplied RGBA, which is what Tauri wants. The
   // view is because `Uint8ClampedArray` isn't in the accepted union.
   return Image.new(new Uint8Array(data.buffer), ICON_PX, ICON_PX);
+}
+
+/**
+ * How far the running task is through the estimate that's actually driving
+ * `over`: its own when it has one, else its group's — the same order
+ * `estimates()` already returns them in. Neither means there's no figure to
+ * drain against, so the tray paints the plain glyph rather than inventing a
+ * zero.
+ */
+function drainProgress(estimated: Estimate[]): number | null {
+  for (const e of estimated) {
+    if (e.estimateMs !== null) return e.spentMs / e.estimateMs;
+  }
+  return null;
 }
 
 /**
