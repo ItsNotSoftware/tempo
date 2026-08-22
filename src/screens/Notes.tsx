@@ -13,7 +13,7 @@ import {
   Plus,
   Trash2,
 } from "lucide-react";
-import { Markdown } from "../components/Markdown";
+import { Editor } from "../components/Editor";
 import {
   dayPage,
   dayPages,
@@ -406,8 +406,12 @@ export function Notes({
   const body = open === null ? (dayPage(notes.notes, day)?.body ?? "") : open.body;
   const write = (value: string) =>
     open === null ? notes.writeDay(day, value) : notes.write(open.id, value);
-  /** Nothing written has nothing to read — a blank read view is a dead end. */
-  const reading = view.mode === "read" && body.trim() !== "";
+  const prompt =
+    open === null
+      ? `Notes for ${formatDate(day)}…`
+      : "Whatever you keep coming back to…";
+  /** The path is the identity, so this is a different page, not a changed one. */
+  const pageId = open === null ? `day:${day}` : `note:${open.id}`;
 
   if (!notes.loaded) return <div className="notes notes--waiting" />;
 
@@ -541,19 +545,15 @@ export function Notes({
           />
         )}
 
-        {reading ? (
-          <div className="page__pane page__read">
-            <Markdown body={body} />
+        {view.mode === "read" ? (
+          <div className="page__pane page__live">
+            <Editor key={pageId} body={body} onChange={write} placeholder={prompt} />
           </div>
         ) : (
           <textarea
             className="page__pane page__body"
             aria-label="Note"
-            placeholder={
-              open === null
-                ? `Notes for ${formatDate(day)}…`
-                : "Whatever you keep coming back to…"
-            }
+            placeholder={prompt}
             value={body}
             onChange={(e) => write(e.target.value)}
           />
