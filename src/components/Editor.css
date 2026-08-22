@@ -99,7 +99,10 @@
 
 /* --- Blocks ---
    A quote and a fence dress every line they cover, because a line is the
-   largest thing a view plugin is allowed to decorate. */
+   largest thing a view plugin is allowed to decorate. The fence lines
+   themselves are hidden, so the band lands on the code — flat rather than
+   rounded, because with the fences gone there is no line that is reliably
+   the block's first or last. */
 
 .cm-md-quote {
   padding-left: 14px;

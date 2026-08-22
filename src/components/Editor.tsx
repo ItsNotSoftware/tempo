@@ -329,6 +329,9 @@ const HEADINGS = [1, 2, 3, 4, 5, 6].map((n) =>
   Decoration.line({ class: `cm-md-h${n}` }),
 );
 
+/** A node in the parsed page, named off the tree rather than a second import. */
+type TreeNode = ReturnType<typeof syntaxTree>["topNode"];
+
 const HEADING = /^(?:ATX|Setext)Heading([1-6])$/;
 const SCHEME = /^[a-z][\w+.-]*:/i;
 
@@ -417,18 +420,23 @@ function inline(view: EditorView): DecorationSet {
       }
 
       if (name === "CodeMark") {
-        // A fence owns its line; hiding it would leave a blank one behind.
+        // Only the backticks around inline code. A fence is hidden with the
+        // line break after it, which is more than a plugin may replace.
         if (bare(from) && node.node.parent?.name === "InlineCode")
           marks.push(HIDE.range(from, to));
         return;
       }
 
       if (name === "ListMark") {
+        if (!bare(from)) return;
+        // On a task the checkbox is the marker, so the dash goes with it —
+        // the read view drops the bullet on a task item for the same reason.
+        if (node.node.nextSibling?.name === "Task") {
+          marks.push(HIDE.range(from, withSpace(doc, to, doc.lineAt(from).to)));
+          return;
+        }
         const text = doc.sliceString(from, to);
-        // On a task the checkbox stands in for the bullet, as it does in the
-        // read view — two of them would be one mark too many.
-        const task = node.node.nextSibling?.name === "Task";
-        if (bare(from) && !task && (text === "-" || text === "*" || text === "+"))
+        if (text === "-" || text === "*" || text === "+")
           marks.push(BULLET.range(from, to));
         return;
       }
@@ -495,9 +503,14 @@ const live = ViewPlugin.fromClass(
 );
 
 /**
- * Tables and whole-line images, replaced by the thing they describe. These
- * cross line breaks, which a view plugin isn't allowed to do, so they are
- * computed from the state instead.
+ * Everything that has to take a line break with it: a table or a whole-line
+ * image swapped for the thing it describes, and a code fence swallowed along
+ * with its newline so the block starts on the code rather than on the blank
+ * line the fence left behind. A view plugin may not replace across a break, so
+ * these are computed from the state instead.
+ *
+ * All three reveal on the whole block rather than line by line — a caret in
+ * the middle of a code block wants the fences back, not one of them.
  */
 function blockSet(state: EditorState): DecorationSet {
   const doc = state.doc;
@@ -507,16 +520,23 @@ function blockSet(state: EditorState): DecorationSet {
   syntaxTree(state).iterate({
     enter: (node) => {
       const { name, from, to } = node;
-      if (name !== "Table" && name !== "Image") return;
+      if (name !== "Table" && name !== "Image" && name !== "FencedCode") return;
       const first = doc.lineAt(from);
       const last = doc.lineAt(to);
-      const source = doc.sliceString(first.from, last.to);
+      const whole = () => doc.sliceString(first.from, last.to);
       // An image with prose around it is part of the sentence, not a block.
-      if (name === "Image" && source.trim() !== doc.sliceString(from, to).trim())
+      if (name === "Image" && whole().trim() !== doc.sliceString(from, to).trim())
         return false;
       if (on && touches(state.selection, first.from, last.to)) return false;
+
+      // A fence is hidden rather than redrawn — the code is already the code.
+      if (name === "FencedCode") {
+        fences(doc, node.node, marks);
+        return false;
+      }
+
       const drawn = Decoration.replace({
-        widget: new BlockWidget(source),
+        widget: new BlockWidget(whole()),
         block: true,
       });
       marks.push(drawn.range(first.from, last.to));
@@ -525,6 +545,28 @@ function blockSet(state: EditorState): DecorationSet {
   });
 
   return Decoration.set(marks, true);
+}
+
+/**
+ * Hide a fenced block's two fence lines by taking each one together with the
+ * break that separates it from the code — the opening fence with the newline
+ * after it, the closing fence with the one before. Both lines then fold into
+ * the code, rather than leaving an empty one where the fence used to be.
+ *
+ * An unterminated block has no closing fence to hide, and a block with nothing
+ * in it has only one break between its two fences, which the opening fence has
+ * already taken.
+ */
+function fences(doc: Text, node: TreeNode, marks: Range<Decoration>[]) {
+  const open = doc.lineAt(node.from);
+  const after = Math.min(open.to + 1, doc.length);
+  if (open.from < after) marks.push(HIDE.range(open.from, after));
+
+  const tail = node.lastChild;
+  if (tail === null || tail.name !== "CodeMark" || tail.to !== node.to) return;
+  const close = doc.lineAt(node.to);
+  const before = close.from - 1;
+  if (before >= after && before < close.to) marks.push(HIDE.range(before, close.to));
 }
 
 const blocks: Extension = EditorView.decorations.compute(
