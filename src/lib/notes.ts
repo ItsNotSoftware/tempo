@@ -239,6 +239,35 @@ export function folderContents(
 }
 
 /**
+ * Read the vault, nesting any legacy flat day pages on the way in.
+ *
+ * The single path onto a snapshot, and it has to stay that way: pointing the
+ * notebook at another directory loads it too, and a load that skipped the
+ * migration would leave a day readable at its flat path while `writeDay`
+ * saved to the nested one — two files for one day, and the next launch
+ * wouldn't heal it, because the migration skips a move whose target is taken.
+ *
+ * The moves are awaited rather than fired alongside. The notebook is already
+ * showing nothing until this resolves, and a UI live while renames are in
+ * flight is one that can write a `.tempo.json` entry the index write below
+ * would then stamp back over.
+ *
+ * `allSettled`, because the index has to be written whatever happens: one move
+ * failing under `all` would take the rekeyed metadata for every page that
+ * *did* move down with it. A page whose move failed stays flat, which `dayOf`
+ * still reads, and loses only its index entry — where `createdAt` falls back
+ * to the file's mtime, and a day page is never pinned anyway.
+ */
+async function loadMigrated(): Promise<Snapshot> {
+  const { snapshot, moves } = migrateDayPaths(await vault.load());
+  if (moves.length > 0) {
+    await Promise.allSettled(moves.map(({ from, to }) => vault.movePath(from, to)));
+    await vault.writeIndex(snapshot.index);
+  }
+  return snapshot;
+}
+
+/**
  * Long enough to swallow a burst of typing, short enough that quitting from the
  * tray menu in the same breath as a keystroke is the only way to lose one.
  */
@@ -278,24 +307,7 @@ export function useNotes() {
   }, []);
 
   useEffect(() => {
-    void vault.load().then((loaded) => {
-      const { snapshot: migrated, moves } = migrateDayPaths(loaded);
-      // Fire the moves alongside setSnapshot rather than awaiting them — the
-      // snapshot returned by migrateDayPaths already reflects where they land.
-      //
-      // `allSettled`, because the index has to be written whatever happens: one
-      // move failing under `all` would take the rekeyed metadata for every page
-      // that *did* move down with it. A page whose move failed is left flat,
-      // which `dayOf` still reads, and loses only its `.tempo.json` entry —
-      // where `createdAt` falls back to the file's mtime and a day page is
-      // never pinned anyway.
-      if (moves.length > 0) {
-        void Promise.allSettled(
-          moves.map(({ from, to }) => vault.movePath(from, to)),
-        ).then(() => vault.writeIndex(migrated.index));
-      }
-      setSnapshot(migrated);
-    });
+    void loadMigrated().then(setSnapshot);
   }, []);
 
   useEffect(() => {
@@ -519,7 +531,10 @@ export function useNotes() {
     async setRoot(path: string, moveExisting: boolean) {
       flush();
       await vault.setRoot(path, moveExisting);
-      setSnapshot(await vault.load());
+      // Through `loadMigrated`, not `vault.load`: the directory you point at
+      // may be an older notebook, and its flat day pages have to be nested on
+      // the way in like any other.
+      setSnapshot(await loadMigrated());
     },
   };
 }

@@ -28,7 +28,13 @@ function readEvents(): Event[] {
     const raw = localStorage.getItem(EVENTS_KEY);
     if (raw === null) return [];
     const parsed: unknown = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as Event[]) : [];
+    if (!Array.isArray(parsed)) return [];
+    // `color` arrived after these were written, so anything booked before it
+    // has no such key at all. Filled in here rather than coped with at each
+    // reader: `undefined` and `null` both derive a hue, but only one of them
+    // equals `null`, and a picker asking "is this one derived?" would say no
+    // for every booking made before the feature existed.
+    return (parsed as Event[]).map((e) => ({ ...e, color: e.color ?? null }));
   } catch {
     return [];
   }

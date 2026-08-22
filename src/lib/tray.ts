@@ -108,12 +108,17 @@ export function useTray(
   // so the icon and the alert can't disagree about what "over" means.
   const estimated: Estimate[] =
     current === null ? [] : estimates(current, api.tasks, api.groups, now);
-  const over = estimated.some((e) => e.over);
+  // One estimate answers for the icon, and both halves of it read off that
+  // one. Taking "over" from any of them while the fill came from the first
+  // with a figure is how you get a danger-red glass sitting at 40% — the
+  // colour and the level disagreeing about which estimate they mean.
+  const measured = measuring(estimated);
+  const over = measured?.over === true;
   const look: Look = current === null ? "idle" : over ? "over" : "running";
-  // The task's own estimate, else its group's — the same fallback order
-  // `estimated` already comes back in. Neither means there's no figure to
-  // drain against.
-  const progress = drainProgress(estimated);
+  const progress =
+    measured === null || measured.estimateMs === null
+      ? null
+      : measured.spentMs / measured.estimateMs;
   // Quantised so the icon only repaints on a real change of how full the
   // glass looks, same discipline as the title and menu settling for a minute
   // at a time rather than the tick.
@@ -231,17 +236,22 @@ async function draw(look: Look, bucket: number | null): Promise<Image> {
 }
 
 /**
- * How far the running task is through the estimate that's actually driving
- * `over`: its own when it has one, else its group's — the same order
- * `estimates()` already returns them in. Neither means there's no figure to
- * drain against, so the tray paints the plain glyph rather than inventing a
- * zero.
+ * The one estimate the icon answers for: whichever has actually been blown if
+ * either has, else the first carrying a figure at all — the task's own before
+ * its group's, the order `estimates()` already returns them in. `null` when
+ * neither has one, which is the tray's cue to paint the plain glyph rather
+ * than invent a progress of zero.
+ *
+ * Preferring an over-run one keeps this in step with the notification, which
+ * fires when *any* estimate goes over: pick an over one whenever one exists
+ * and "is the icon over" comes out identical to "did anything go over".
  */
-function drainProgress(estimated: Estimate[]): number | null {
-  for (const e of estimated) {
-    if (e.estimateMs !== null) return e.spentMs / e.estimateMs;
-  }
-  return null;
+function measuring(estimated: Estimate[]): Estimate | null {
+  return (
+    estimated.find((e) => e.over) ??
+    estimated.find((e) => e.estimateMs !== null) ??
+    null
+  );
 }
 
 /**
