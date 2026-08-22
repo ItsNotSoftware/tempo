@@ -5,8 +5,8 @@ const VIEW_KEY = "tempo.notes.view.v1";
 
 /**
  * A page is a file. Kept notes are `<folder>/<title>.md` anywhere in the tree,
- * day pages are `Days/YYYY-MM-DD.md`. The path is the identity, so renaming a
- * note moves it and hands back a new id.
+ * day pages are `Days/YYYY/MM/YYYY-MM-DD.md`. The path is the identity, so
+ * renaming a note moves it and hands back a new id.
  */
 export interface Note {
   /** Path relative to the notes root. */
@@ -52,9 +52,15 @@ function readView(): View {
 
 // --- Paths ---
 
-const DAY_FILE = /^Days\/(\d{4})-(\d{2})-(\d{2})\.md$/;
+// The year/month folder is optional so an un-migrated file still reads as a
+// day page — never a kept note called "2026-08-22" on the shelf.
+const DAY_FILE = /^Days\/(?:\d{4}\/\d{2}\/)?(\d{4})-(\d{2})-(\d{2})\.md$/;
+// Matched separately from DAY_FILE so migration can tell "needs moving" apart
+// from "already nested" — DAY_FILE alone can't distinguish the two.
+const LEGACY_DAY_FILE = /^Days\/(\d{4})-(\d{2})-(\d{2})\.md$/;
 
-function dayOf(rel: string): number | null {
+/** The day a path names, reading both the nested shape and the legacy flat one. */
+export function dayOf(rel: string): number | null {
   const m = DAY_FILE.exec(rel);
   return m === null
     ? null
@@ -106,6 +112,54 @@ function toNote(
     pinned: meta.pinned === true,
     folder: day === null ? parentOf(file.rel) : null,
     createdAt: meta.createdAt ?? file.modified,
+  };
+}
+
+// --- Migration ---
+
+/**
+ * Legacy flat day pages (`Days/2026-08-22.md`), nested under their year and
+ * month. Pure so the rule is testable on its own; the `vault.load()` effect
+ * that calls it is the one-line caller — per CLAUDE.md's note on exporting a
+ * kernel rather than hook internals.
+ */
+export function migrateDayPaths(
+  snapshot: Snapshot,
+): { snapshot: Snapshot; moves: { from: string; to: string }[] } {
+  const taken = new Set(snapshot.notes.map((n) => n.rel));
+  const moves: { from: string; to: string }[] = [];
+
+  for (const note of snapshot.notes) {
+    const m = LEGACY_DAY_FILE.exec(note.rel);
+    if (m === null) continue;
+    const day = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).getTime();
+    const to = dayFile(day);
+    // Something already sits at the nested path — leave the flat file where
+    // it is rather than clobber whatever's there.
+    if (taken.has(to)) continue;
+    moves.push({ from: note.rel, to });
+  }
+
+  if (moves.length === 0) return { snapshot, moves };
+
+  const renamed = new Map(moves.map((m) => [m.from, m.to]));
+  const notesIndex = { ...snapshot.index.notes };
+  for (const { from, to } of moves) {
+    if (from in notesIndex) {
+      notesIndex[to] = notesIndex[from];
+      delete notesIndex[from];
+    }
+  }
+
+  return {
+    snapshot: {
+      ...snapshot,
+      notes: snapshot.notes.map((n) =>
+        renamed.has(n.rel) ? { ...n, rel: renamed.get(n.rel) ?? n.rel } : n,
+      ),
+      index: { notes: notesIndex, folders: snapshot.index.folders },
+    },
+    moves,
   };
 }
 
@@ -224,7 +278,17 @@ export function useNotes() {
   }, []);
 
   useEffect(() => {
-    void vault.load().then(setSnapshot);
+    void vault.load().then((loaded) => {
+      const { snapshot: migrated, moves } = migrateDayPaths(loaded);
+      // Fire the moves alongside setSnapshot rather than awaiting them — the
+      // snapshot returned by migrateDayPaths already reflects where they land.
+      if (moves.length > 0) {
+        void Promise.all(moves.map(({ from, to }) => vault.movePath(from, to))).then(
+          () => vault.writeIndex(migrated.index),
+        );
+      }
+      setSnapshot(migrated);
+    });
   }, []);
 
   useEffect(() => {
