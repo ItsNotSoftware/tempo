@@ -1,7 +1,9 @@
 /**
- * The tempo mark: one hourglass in a 24×24 box. The rail wears it as an SVG and
- * the tray rasterises it, so there is a single piece of art and the menu bar can
- * never drift away from the window.
+ * The tempo mark: one hourglass in a 24×24 box. The tray rasterises it, and
+ * the screenshot sheet reads this file to paint the same glyph at menu bar
+ * sizes — which is the only way to review the art, since a menu bar can't be
+ * screenshotted. The rail wore it as an SVG until `2e49a48` dropped that icon;
+ * nothing renders it as SVG today.
  *
  * Filled rather than stroked on purpose. macOS scales a tray icon to 18 points
  * high, where a hairline hints badly and all but disappears against a busy menu
