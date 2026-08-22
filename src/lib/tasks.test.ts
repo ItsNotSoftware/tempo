@@ -3,6 +3,7 @@ import {
   estimates,
   groupSpent,
   parseEntry,
+  recorded,
   retimedDay,
   type Groups,
   type Segment,
@@ -128,6 +129,57 @@ describe("retimedDay", () => {
 
     expect(next[0]?.start).toBe(dayStart);
     expect(next.every((s) => (s.end ?? now) <= dayEnd)).toBe(true);
+  });
+});
+
+describe("recorded", () => {
+  // The gesture this rule exists for: a window that already happened, logged
+  // straight onto a task that never ran for it.
+  it("appends a run for a window that already happened", () => {
+    const now = at(14);
+    const next = recorded([], at(9), at(10), now);
+
+    expect(next).toEqual([{ start: at(9), end: at(10) }]);
+  });
+
+  // Logging mid-meeting can't credit minutes that haven't passed yet.
+  it("clamps an end past now", () => {
+    const now = at(10);
+    const next = recorded([], at(9), at(12), now);
+
+    expect(next).toEqual([{ start: at(9), end: at(10) }]);
+  });
+
+  // Logging is what marks the task done, so nothing can be left counting
+  // behind it — same one-clock rule `start` enforces, from the other side.
+  it("closes a run still open rather than leaving two clocks", () => {
+    const now = at(14);
+    const next = recorded([{ start: at(8), end: null }], at(11), at(12), now);
+
+    expect(next).toEqual([
+      { start: at(8), end: now },
+      { start: at(11), end: at(12) },
+    ]);
+  });
+
+  it("leaves runs on other days untouched", () => {
+    const now = at(14);
+    const yesterday = { start: dayStart - HOUR, end: dayStart - 30 * MINUTE };
+    const next = recorded([yesterday], at(9), at(10), now);
+
+    expect(next).toContainEqual(yesterday);
+    expect(next).toContainEqual({ start: at(9), end: at(10) });
+  });
+
+  // Same invariants `retimedDay` runs through the same seam: nothing ends
+  // before it starts or after now, and the runs come out oldest first.
+  it("satisfies the shape every task's segments keep", () => {
+    const now = at(11, 30);
+    const next = recorded([{ start: at(8), end: null }], at(9), at(10), now);
+
+    expect(next.every((s) => s.start <= (s.end ?? now))).toBe(true);
+    expect(next.every((s) => (s.end ?? now) <= now)).toBe(true);
+    expect([...next]).toEqual([...next].sort((a, b) => a.start - b.start));
   });
 });
 
