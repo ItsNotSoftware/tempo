@@ -132,6 +132,12 @@ export function logEvent(
   if (to <= event.start) return;
 
   const linked = findLinked(event, api);
+  // One log per booking, enforced here rather than only on the button that
+  // happens to be disabled: `startEvent` keeps its own "never two tasks" rule
+  // in the shared function precisely because the tray and a notification reach
+  // it too, and anything wired to this later inherits the same guard.
+  if (linked !== null && elapsedMs(linked, now) > 0) return;
+
   const id = linked !== null ? linked.id : linkedTask(event, api, events);
   api.record(id, event.start, to);
 }

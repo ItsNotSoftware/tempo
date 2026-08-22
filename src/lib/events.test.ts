@@ -199,4 +199,26 @@ describe("logEvent", () => {
 
     expect(calls).toEqual([]);
   });
+
+  // The rule lives in `logEvent`, not in the button that happens to be
+  // disabled — `startEvent` keeps its "never two tasks" guard in the shared
+  // function for the same reason, so anything wired here later inherits it.
+  it("refuses to log twice onto a task that already has time", () => {
+    const tracked: Task[] = [
+      {
+        id: "t1",
+        group: null,
+        name: "Standup",
+        notes: "",
+        estimateMs: null,
+        segments: [{ start: at(10), end: at(11) }],
+        createdAt: dayStart,
+        completedAt: at(11),
+      },
+    ];
+    const { api, events, calls } = stubs(tracked);
+    logEvent(booking({ taskId: "t1" }), api, events, at(12));
+
+    expect(calls).toEqual([]);
+  });
 });
