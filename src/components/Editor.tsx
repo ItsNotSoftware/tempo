@@ -159,11 +159,32 @@ const shellKeys = Prec.highest(
  * real anchor and comes through the same door. A plain <a> left to itself
  * would navigate the webview, with no way back.
  */
+function linkAt(e: Event): string | null {
+  const found = (e.target as HTMLElement | null)?.closest("[data-href], a[href]");
+  return found?.getAttribute("data-href") ?? found?.getAttribute("href") ?? null;
+}
+
+/**
+ * A link leaves for the browser; the webview must not follow it.
+ *
+ * Both halves are load-bearing. `mousedown` keeps the caret from landing in the
+ * link — that's the gesture CodeMirror would otherwise read as "edit here".
+ * **`click` is what actually stops the navigation**: following an anchor is the
+ * default action of `click`, not of `mousedown`, so preventing it on the way
+ * down leaves the href to fire anyway. A table widget is built with
+ * `renderToStaticMarkup`, which drops `Markdown`'s own click handler and leaves
+ * a bare `<a href>`, so its links reach the webview through nothing else — and
+ * a webview that navigates away from the app has no way back.
+ */
 const openLinks = EditorView.domEventHandlers({
   mousedown: (e) => {
-    const found = (e.target as HTMLElement | null)?.closest("[data-href], a[href]");
-    const href = found?.getAttribute("data-href") ?? found?.getAttribute("href");
-    if (href === null || href === undefined) return false;
+    if (linkAt(e) === null) return false;
+    e.preventDefault();
+    return true;
+  },
+  click: (e) => {
+    const href = linkAt(e);
+    if (href === null) return false;
     e.preventDefault();
     // No shell to ask when the page is served to a plain browser.
     openUrl(href).catch(() => window.open(href, "_blank"));

@@ -66,9 +66,17 @@ export function EventCard({
   const title = event.title.trim() === "" ? "Untitled" : event.title;
 
   const tone = eventTone(event);
-  // Nothing to log before it's started, and once its task has a minute on it
-  // the window's already recorded — ▶ and Log would otherwise fight over it.
-  const canLog = event.start <= now;
+  /**
+   * Log is for a booking that has **ended**. Offered while one is still under
+   * way it banks only the minutes so far and then locks — one press a minute
+   * in would record a minute and call the meeting done. A booking you're
+   * actually in has ▶, which is the honest answer for time still passing; if
+   * you joined it late, the row's clock takes the figure it should read.
+   *
+   * `logged` is the other half: once the task has a minute on it the window is
+   * already recorded, and ▶ and Log would otherwise fight over the same one.
+   */
+  const canLog = past;
   const logged = isLogged(event, api, now);
 
   function commit(e: FormEvent<HTMLFormElement>) {
