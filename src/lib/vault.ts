@@ -98,11 +98,17 @@ interface LegacyNote {
   createdAt: number;
 }
 
-/** `Days/2026-08-10.md` — sortable, and readable in a file listing. */
+/**
+ * `Days/2026/08/2026-08-10.md` — nested by year and month so a year of pages
+ * isn't one directory of 365 files, but the full date stays in the filename,
+ * so a file opened on its own or synced elsewhere still says which day it is.
+ */
 export function dayFile(day: number): string {
   const d = new Date(day);
   const pad = (n: number) => String(n).padStart(2, "0");
-  return `${DAYS_DIR}/${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}.md`;
+  const y = d.getFullYear();
+  const m = pad(d.getMonth() + 1);
+  return `${DAYS_DIR}/${y}/${m}/${y}-${m}-${pad(d.getDate())}.md`;
 }
 
 function readJson<T>(key: string, fallback: T): T {
