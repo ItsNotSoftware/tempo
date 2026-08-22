@@ -68,6 +68,6 @@
 }
 
 .settings__actions .btn:disabled {
-  opacity: 0.45;
+  opacity: 0.4;
   pointer-events: none;
 }

@@ -1,14 +1,14 @@
 :root {
-  --bg: #0d0f13;
-  --bg-elevated: #14171d;
-  --surface: #171b22;
-  --surface-hover: #1e232c;
-  --border: #242a34;
-  --border-strong: #333a47;
+  --bg: #0a0c0f;
+  --bg-elevated: #14161d;
+  --surface: #1b1e27;
+  --surface-hover: #252935;
+  --border: #2f3544;
+  --border-strong: #3f465a;
 
   --text: #e8eaf0;
   --text-muted: #868e9f;
-  --text-faint: #575f70;
+  --text-faint: #656f86;
 
   --accent: #6c9bff;
   --accent-soft: rgba(108, 155, 255, 0.13);
@@ -37,7 +37,12 @@
   --group-6-soft: rgba(142, 192, 124, 0.13);
 
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
-  --shadow: 0 14px 34px -16px rgba(0, 0, 0, 0.75);
+  /* A hairline top highlight sells "raised" on a background this dark, where a
+     drop shadow alone all but disappears; the two shadows ground the edge. */
+  --shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.045),
+    0 6px 14px -8px rgba(0, 0, 0, 0.7),
+    0 20px 40px -18px rgba(0, 0, 0, 0.8);
 
   color-scheme: dark;
 }
