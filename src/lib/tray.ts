@@ -10,12 +10,13 @@ import {
 import { TrayIcon } from "@tauri-apps/api/tray";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { eventsOn, nextEvent, type Event } from "./events";
-import { DRAIN_STEPS, drainBucket, paint } from "./mark";
+import { paint } from "./mark";
 import {
   elapsedBetween,
   estimates,
   isQueued,
   startedAt,
+  taskCount,
   taskLabel,
   taskStatus,
   touchesDay,
@@ -105,30 +106,19 @@ export function useTray(
   }, [tray, clock, tooltip]);
 
   // What the title can't say at a glance. Same rule the notification fires on,
-  // so the icon and the alert can't disagree about what "over" means.
+  // so the icon and the menu's progress line can't disagree about what "over"
+  // means — and the menu reads `measured` again below, for its own line.
   const estimated: Estimate[] =
     current === null ? [] : estimates(current, api.tasks, api.groups, now);
-  // One estimate answers for the icon, and both halves of it read off that
-  // one. Taking "over" from any of them while the fill came from the first
-  // with a figure is how you get a danger-red glass sitting at 40% — the
-  // colour and the level disagreeing about which estimate they mean.
   const measured = measuring(estimated);
-  const over = measured?.over === true;
-  const look: Look = current === null ? "idle" : over ? "over" : "running";
-  const progress =
-    measured === null || measured.estimateMs === null
-      ? null
-      : measured.spentMs / measured.estimateMs;
-  // Quantised so the icon only repaints on a real change of how full the
-  // glass looks, same discipline as the title and menu settling for a minute
-  // at a time rather than the tick.
-  const bucket = drainBucket(progress);
+  const look: Look =
+    current === null ? "idle" : measured?.over === true ? "over" : "running";
 
   useEffect(() => {
     if (tray === null) return;
     let live = true;
 
-    void icon(look, bucket)
+    void icon(look)
       .then((image) => {
         if (!live) return;
         // Both at once: setting the image and the template flag separately
@@ -144,14 +134,31 @@ export function useTray(
     return () => {
       live = false;
     };
-    // Three values, so this fires on a real change of state and never on the tick.
-  }, [tray, look, bucket]);
+    // Just `look`, so this fires on a real change of state and never on the tick.
+  }, [tray, look]);
 
   const startable = api.tasks
     .filter(
       (t) => (touchesDay(t, from, to) || isQueued(t)) && taskStatus(t) === "idle",
     )
     .slice(0, STARTABLE);
+
+  // Nothing running: the idle task on today's list that was worked on most
+  // recently, so the menu can offer to pick it straight back up rather than
+  // just saying nothing's happening. Queued tasks never worked yet don't
+  // qualify — there's nothing to resume.
+  const resumable =
+    current === null
+      ? startable.reduce<Task | null>(
+          (best, t) =>
+            t.segments.length === 0
+              ? best
+              : best === null || lastEnd(t) > lastEnd(best)
+                ? t
+                : best,
+          null,
+        )
+      : null;
 
   // The one booking worth a menu item: the next one, once it's close enough to
   // be the thing you're about to do. macOS may not offer the notification's
@@ -160,13 +167,23 @@ export function useTray(
   const next =
     upcoming !== null && upcoming.start - now <= UPCOMING ? upcoming : null;
 
+  const todaysTasks = api.tasks.filter((t) => touchesDay(t, from, to));
+  const toDo = todaysTasks.filter((t) => taskStatus(t) !== "done").length;
+
   // Rebuilding the whole menu every second would be waste, so it only happens
   // when something in it would actually read differently — which, like the
-  // title, is once a minute.
+  // title, is once a minute. Every figure below is either an id, a count, or
+  // floored to the minute, so nothing here changes on the tick.
   const shape = [
     current?.id ?? "",
     Math.floor(elapsed / 60_000),
+    measured === null
+      ? ""
+      : `${measured.key}:${measured.over}:${Math.floor(measured.spentMs / 60_000)}`,
+    resumable?.id ?? "",
     Math.floor(total / 60_000),
+    todaysTasks.length,
+    toDo,
     startable.map((t) => `${t.id}:${label(t)}`).join(" "),
     next?.id ?? "",
   ].join("|");
@@ -175,17 +192,26 @@ export function useTray(
     if (tray === null) return;
     let live = true;
 
-    void buildMenu(current, elapsed, total, startable, next, latest).then(
-      async (menu) => {
-        // Beaten by a newer build while we were away.
-        if (!live) return void menu.close();
-        await tray.setMenu(menu);
-        // A menu is a resource on the Rust side; rebuilding once a minute and
-        // never letting the old one go would pile them up all day.
-        await mounted.current?.close();
-        mounted.current = menu;
-      },
-    );
+    void buildMenu(
+      current,
+      elapsed,
+      measured,
+      resumable,
+      startable,
+      next,
+      total,
+      todaysTasks.length,
+      toDo,
+      latest,
+    ).then(async (menu) => {
+      // Beaten by a newer build while we were away.
+      if (!live) return void menu.close();
+      await tray.setMenu(menu);
+      // A menu is a resource on the Rust side; rebuilding once a minute and
+      // never letting the old one go would pile them up all day.
+      await mounted.current?.close();
+      mounted.current = menu;
+    });
 
     return () => {
       live = false;
@@ -195,24 +221,30 @@ export function useTray(
   }, [tray, shape]);
 }
 
-/**
- * At most ~18 icons ever exist: three looks, each at up to `DRAIN_STEPS + 1`
- * drain levels (idle never varies, since it never has a running task to
- * measure). An `Image` is a resource on the Rust side, so each combination is
- * drawn once and kept rather than minted every time the state changes — and a
- * rejected promise stays in the map, so a failure happens once and quietly
- * rather than on every transition for the rest of the day.
- */
-const icons = new Map<string, Promise<Image>>();
+/** When a task's last run ended — idle by construction, so nothing here is
+ *  still open. Used only to rank "worked on most recently" for the resume
+ *  offer. */
+function lastEnd(task: Task): number {
+  const last = task.segments[task.segments.length - 1];
+  return last?.end ?? 0;
+}
 
-function icon(look: Look, bucket: number | null): Promise<Image> {
-  const key = `${look}:${bucket ?? "plain"}`;
-  const drawn = icons.get(key) ?? draw(look, bucket);
-  icons.set(key, drawn);
+/**
+ * At most three icons ever exist, one per look. An `Image` is a resource on
+ * the Rust side, so each is drawn once and kept rather than minted every time
+ * the state changes — and a rejected promise stays in the map, so a failure
+ * happens once and quietly rather than on every transition for the rest of
+ * the day.
+ */
+const icons = new Map<Look, Promise<Image>>();
+
+function icon(look: Look): Promise<Image> {
+  const drawn = icons.get(look) ?? draw(look);
+  icons.set(look, drawn);
   return drawn;
 }
 
-async function draw(look: Look, bucket: number | null): Promise<Image> {
+async function draw(look: Look): Promise<Image> {
   // A template is alpha-only: macOS tints the idle glyph to match the menu bar
   // itself, so the colour here is only something opaque to carry the shape.
   const color =
@@ -222,11 +254,7 @@ async function draw(look: Look, bucket: number | null): Promise<Image> {
         ? themeColor("--danger", "#ff6259")
         : themeColor("--accent", "#6c9bff");
 
-  // The bucket is already the quantised figure; turning it back into a
-  // fraction here, rather than passing the raw progress through, is what
-  // makes two calls for the same bucket paint pixel-identical icons.
-  const progress = bucket === null ? null : bucket / DRAIN_STEPS;
-  const ctx = paint(document.createElement("canvas"), color, ICON_PX, progress);
+  const ctx = paint(document.createElement("canvas"), color, ICON_PX);
   if (ctx === null) throw new Error("no 2d context for the tray icon");
 
   const { data } = ctx.getImageData(0, 0, ICON_PX, ICON_PX);
@@ -280,12 +308,29 @@ function cap(text: string): string {
   return text.length > LABEL_CAP ? `${text.slice(0, LABEL_CAP - 1)}…` : text;
 }
 
+/**
+ * `1h 12m / 1h 30m`, the same figure the row's own estimate bar reads — against
+ * the subject's total, not the day, so this can't disagree with the tooltip
+ * that already spells that out. A group's line names the group, since that's
+ * a different budget than the task's own. Reads as over in words, because
+ * words are where that information belongs now that the icon doesn't drain.
+ */
+function progressLine(e: Estimate): string {
+  const ratio = `${formatDurationShort(e.spentMs)} / ${formatDurationShort(e.estimateMs ?? 0)}`;
+  const text = e.scope === "group" ? `${e.subject} · ${ratio}` : ratio;
+  return e.over ? `${text} · over` : text;
+}
+
 async function buildMenu(
   current: Task | null,
   elapsed: number,
-  total: number,
+  measured: Estimate | null,
+  resumable: Task | null,
   startable: Task[],
   next: Event | null,
+  total: number,
+  taskCountToday: number,
+  toDo: number,
   latest: { current: { api: TasksApi; onStartEvent: (event: Event) => void } },
 ): Promise<Menu> {
   const items: MenuItems = [];
@@ -293,6 +338,12 @@ async function buildMenu(
 
   if (current === null) {
     items.push({ text: "Nothing tracking", enabled: false });
+    if (resumable !== null) {
+      items.push({
+        text: `Resume ${label(resumable)}`,
+        action: () => api().start(resumable.id),
+      });
+    }
   } else {
     const since = startedAt(current);
     items.push({ text: label(current), enabled: false });
@@ -303,6 +354,9 @@ async function buildMenu(
           : `${formatDurationShort(elapsed)} · since ${formatTimeOfDay(since)}`,
       enabled: false,
     });
+    if (measured !== null) {
+      items.push({ text: progressLine(measured), enabled: false });
+    }
     items.push(await PredefinedMenuItem.new({ item: "Separator" }));
     items.push({ text: "Pause", action: () => api().stop(current.id) });
     items.push({ text: "Finish", action: () => api().finish(current.id) });
@@ -310,8 +364,9 @@ async function buildMenu(
 
   if (next !== null) {
     items.push(await PredefinedMenuItem.new({ item: "Separator" }));
+    items.push({ text: "UPCOMING", enabled: false });
     items.push({
-      text: `Next · ${formatTimeOfDay(next.start)} ${eventLabel(next)}`,
+      text: `${formatTimeOfDay(next.start)} · ${eventLabel(next)}`,
       enabled: false,
     });
     items.push({
@@ -322,6 +377,7 @@ async function buildMenu(
 
   if (startable.length > 0) {
     items.push(await PredefinedMenuItem.new({ item: "Separator" }));
+    items.push({ text: "START A TASK", enabled: false });
     items.push(
       await Submenu.new({
         text: "Start",
@@ -334,8 +390,17 @@ async function buildMenu(
   }
 
   items.push(await PredefinedMenuItem.new({ item: "Separator" }));
-  items.push({ text: `Today · ${formatDurationShort(total)}`, enabled: false });
-  items.push({ text: "Show Tempo", action: show });
+  items.push({
+    text:
+      `Today · ${formatDurationShort(total)} across ${taskCount(taskCountToday)}` +
+      ` · ${toDo} to do`,
+    enabled: false,
+  });
+  items.push({
+    text: "Show Tempo",
+    action: show,
+    accelerator: "CmdOrCtrl+Shift+T",
+  });
   items.push(await PredefinedMenuItem.new({ item: "Quit" }));
 
   return Menu.new({ items });

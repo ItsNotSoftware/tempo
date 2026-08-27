@@ -3,11 +3,22 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
+import { languages } from "@codemirror/language-data";
 import {
   HighlightStyle,
   syntaxHighlighting,
   syntaxTree,
 } from "@codemirror/language";
+import {
+  SearchQuery,
+  closeSearchPanel,
+  findNext,
+  findPrevious,
+  getSearchQuery,
+  search,
+  searchKeymap,
+  setSearchQuery,
+} from "@codemirror/search";
 import {
   Annotation,
   EditorState,
@@ -26,9 +37,11 @@ import {
   keymap,
   placeholder as showPlaceholder,
   type DecorationSet,
+  type Panel,
   type ViewUpdate,
 } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
+import { ChevronDown, ChevronUp, Search as Glass, X } from "lucide-react";
 import { Markdown } from "./Markdown";
 import "./Editor.css";
 
@@ -63,10 +76,15 @@ export function Editor({ body, onChange, placeholder }: EditorProps) {
         extensions: [
           shellKeys,
           history(),
-          keymap.of([...defaultKeymap, ...historyKeymap]),
-          markdown({ base: markdownLanguage }),
+          // Search first, so Mod-f/F3/Mod-g resolve before the editing keymap
+          // gets a look — none of defaultKeymap claims them, but order still
+          // decides ties.
+          keymap.of([...searchKeymap, ...defaultKeymap, ...historyKeymap]),
+          markdown({ base: markdownLanguage, codeLanguages: languages }),
           EditorView.lineWrapping,
           syntaxHighlighting(highlight),
+          // ⌘F opens the strip below; `f` isn't in SHELL_KEYS.
+          search({ top: true, createPanel: findPanel }),
           theme,
           showPlaceholder(opened.current.placeholder),
           EditorView.contentAttributes.of({ "aria-label": "Note" }),
@@ -221,11 +239,16 @@ const theme = EditorView.theme(
     ".cm-line": { padding: "0" },
     ".cm-content ::selection": { backgroundColor: "var(--accent-soft)" },
     ".cm-placeholder": { color: "var(--text-faint)" },
+
   },
   { dark: true },
 );
 
-/** Token colours only — the shapes are decoration classes. */
+/**
+ * Token colours only — the shapes are decoration classes. The markdown
+ * entries come first and are untouched; the rest colour whatever a fenced
+ * block's own language parses inside it, from the same tag vocabulary.
+ */
 const highlight = HighlightStyle.define([
   { tag: tags.processingInstruction, color: "var(--text-faint)" },
   { tag: tags.labelName, color: "var(--text-faint)" },
@@ -234,7 +257,208 @@ const highlight = HighlightStyle.define([
   { tag: tags.url, color: "var(--accent)" },
   { tag: tags.link, color: "var(--accent)" },
   { tag: tags.monospace, color: "var(--text)" },
+
+  // --- Code, inside a fenced block ---
+  {
+    tag: [tags.comment, tags.lineComment, tags.blockComment, tags.docComment],
+    color: "var(--text-faint)",
+    fontStyle: "italic",
+  },
+  {
+    tag: [
+      tags.keyword,
+      tags.controlKeyword,
+      tags.moduleKeyword,
+      tags.operatorKeyword,
+      tags.definitionKeyword,
+      tags.self,
+    ],
+    color: "var(--group-2)",
+  },
+  { tag: [tags.character, tags.docString], color: "var(--text-muted)" },
+  { tag: tags.regexp, color: "var(--warn)" },
+  {
+    tag: [tags.number, tags.integer, tags.float, tags.bool, tags.null, tags.atom],
+    color: "var(--group-4)",
+  },
+  { tag: tags.variableName, color: "var(--text)" },
+  { tag: tags.definition(tags.variableName), color: "var(--text)" },
+  { tag: tags.function(tags.variableName), color: "var(--group-3)" },
+  { tag: [tags.propertyName, tags.attributeName], color: "var(--group-6)" },
+  {
+    tag: [tags.typeName, tags.className, tags.namespace, tags.tagName],
+    color: "var(--group-5)",
+  },
+  {
+    tag: [
+      tags.operator,
+      tags.derefOperator,
+      tags.arithmeticOperator,
+      tags.logicOperator,
+      tags.bitwiseOperator,
+      tags.compareOperator,
+      tags.updateOperator,
+      tags.definitionOperator,
+      tags.typeOperator,
+      tags.controlOperator,
+    ],
+    color: "var(--text-muted)",
+  },
+  {
+    tag: [
+      tags.punctuation,
+      tags.separator,
+      tags.bracket,
+      tags.angleBracket,
+      tags.squareBracket,
+      tags.paren,
+      tags.brace,
+    ],
+    color: "var(--text-faint)",
+  },
+  { tag: tags.invalid, color: "var(--danger)" },
 ]);
+
+// --- Find ---
+
+/**
+ * ⌘F, as a strip floating over the page. CodeMirror's own panel carries a
+ * replace field, three toggles and four buttons; a note wants the field, how
+ * many matches it found, and the two ways through them.
+ */
+function findPanel(view: EditorView): Panel {
+  const dom = document.createElement("div");
+  dom.className = "cm-find";
+
+  const glass = document.createElement("span");
+  glass.className = "cm-find__glass";
+  glass.innerHTML = renderToStaticMarkup(<Glass size={13} />);
+
+  const field = document.createElement("input");
+  field.className = "cm-find__field";
+  field.placeholder = "Find";
+  field.spellcheck = false;
+  field.setAttribute("aria-label", "Find in page");
+  // Reopening keeps the last query, so ⌘F twice is the same search again.
+  field.value = getSearchQuery(view.state).search;
+
+  const tally = document.createElement("span");
+  tally.className = "cm-find__tally";
+
+  const step = (label: string, icon: string, run: (v: EditorView) => boolean) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "icon-btn icon-btn--sm";
+    button.title = label;
+    button.setAttribute("aria-label", label);
+    button.innerHTML = icon;
+    // The field keeps focus — stepping through matches is still searching.
+    button.addEventListener("mousedown", (e) => e.preventDefault());
+    button.addEventListener("click", () => void run(view));
+    return button;
+  };
+
+  field.addEventListener("input", () => {
+    const query = new SearchQuery({ search: field.value });
+    view.dispatch({ effects: setSearchQuery.of(query) });
+    reveal(view, query);
+  });
+
+  field.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      (e.shiftKey ? findPrevious : findNext)(view);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      closeSearchPanel(view);
+    }
+  });
+
+  dom.append(
+    glass,
+    field,
+    tally,
+    step("Previous match", renderToStaticMarkup(<ChevronUp size={14} />), findPrevious),
+    step("Next match", renderToStaticMarkup(<ChevronDown size={14} />), findNext),
+    step("Close find", renderToStaticMarkup(<X size={14} />), closeSearchPanel),
+  );
+
+  const redraw = () => {
+    const { total, index } = tallyOf(view, getSearchQuery(view.state));
+    tally.textContent =
+      field.value === "" ? "" : total === 0 ? "none" : `${index}/${total}`;
+    tally.classList.toggle("is-none", field.value !== "" && total === 0);
+  };
+  redraw();
+
+  return {
+    dom,
+    top: true,
+    mount: () => {
+      field.focus();
+      field.select();
+    },
+    update: (update) => {
+      if (update.docChanged || update.selectionSet || requeried(update)) redraw();
+    },
+  };
+}
+
+/** A new query arrived, so the count the strip is showing is stale. */
+function requeried(update: ViewUpdate): boolean {
+  return update.transactions.some((tr) =>
+    tr.effects.some((e) => e.is(setSearchQuery)),
+  );
+}
+
+/**
+ * How many matches the query has, and which one the selection sits on. The
+ * whole page is counted rather than tracked incrementally — a note is a page,
+ * and a count that only holds for the viewport would be a lie.
+ */
+function tallyOf(
+  view: EditorView,
+  query: SearchQuery,
+): { total: number; index: number } {
+  if (!query.valid) return { total: 0, index: 0 };
+  const selection = view.state.selection.main;
+  const cursor = query.getCursor(view.state);
+  let total = 0;
+  let index = 0;
+  for (let hit = cursor.next(); hit.done !== true; hit = cursor.next()) {
+    total++;
+    if (hit.value.from === selection.from && hit.value.to === selection.to)
+      index = total;
+  }
+  return { total, index };
+}
+
+function matchFrom(
+  query: SearchQuery,
+  state: EditorState,
+  from: number,
+): { from: number; to: number } | null {
+  const hit = query.getCursor(state, from).next();
+  return hit.done === true ? null : hit.value;
+}
+
+/**
+ * Move to the first match at or after the caret as the query is typed, and
+ * wrap to the top when there is none below — otherwise the only feedback is a
+ * highlight that may well be off screen.
+ */
+function reveal(view: EditorView, query: SearchQuery): void {
+  if (!query.valid) return;
+  const state = view.state;
+  const at = state.selection.main.from;
+  const hit = matchFrom(query, state, at) ?? matchFrom(query, state, 0);
+  if (hit === null) return;
+  view.dispatch({
+    selection: { anchor: hit.from, head: hit.to },
+    scrollIntoView: true,
+    userEvent: "select.search",
+  });
+}
 
 // --- Widgets ---
 

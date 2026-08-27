@@ -1,7 +1,8 @@
 import { useEffect, useState, type CSSProperties, type FormEvent } from "react";
-import { History, Pencil, Play, RotateCcw, Trash2 } from "lucide-react";
+import { Check, History, Pencil, Play, RotateCcw, Trash2 } from "lucide-react";
 import {
   eventEnd,
+  eventTaskLabel,
   eventTone,
   isLogged,
   isTracking,
@@ -26,6 +27,9 @@ interface EventCardProps {
   day: number;
   api: TasksApi;
   events: EventsApi;
+  /** Say what ▶ or Log just did — neither otherwise changes the schedule's
+   *  own shape enough to notice. */
+  onToast: (message: string) => void;
   /** Where it sits in the day's column, worked out by the screen. */
   style: CSSProperties;
   /** Sharing its hour with another booking, so it has half the room to say it in. */
@@ -45,6 +49,7 @@ export function EventCard({
   day,
   api,
   events,
+  onToast,
   style,
   narrow = false,
   readOnly = false,
@@ -78,6 +83,17 @@ export function EventCard({
    */
   const canLog = past;
   const logged = isLogged(event, api, now);
+
+  function handleStart() {
+    const task = startEvent(event, api, events);
+    onToast(`Started · ${eventTaskLabel(task)}`);
+  }
+
+  function handleLog() {
+    const result = logEvent(event, api, events, now);
+    if (result === null) return;
+    onToast(`Logged ${formatDurationShort(result.loggedMs)} · ${eventTaskLabel(result)}`);
+  }
 
   function commit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -190,10 +206,10 @@ export function EventCard({
           <div className="event__actions">
             {!readOnly && (
               <button
-                className={`icon-btn icon-btn--sm${tracking ? " is-on" : ""}`}
+                className={`icon-btn icon-btn--sm event__play${tracking ? " is-on" : ""}`}
                 title={tracking ? "Tracking this" : "Start a timer for this"}
                 aria-label="Start timer for event"
-                onClick={() => startEvent(event, api, events)}
+                onClick={handleStart}
               >
                 <Play size={14} strokeWidth={2.25} fill="currentColor" />
               </button>
@@ -205,13 +221,20 @@ export function EventCard({
                 a past day still offers. */}
             {canLog && (
               <button
-                className="icon-btn icon-btn--sm"
-                title={logged ? "Already logged" : "Log the time you were in it"}
-                aria-label={logged ? "Meeting already logged" : "Log this meeting"}
+                className={`icon-btn icon-btn--sm${logged ? " event__logged" : ""}`}
+                title={logged ? "Logged" : "Log the time you were in it"}
+                aria-label={logged ? "Meeting logged" : "Log this meeting"}
                 disabled={logged}
-                onClick={() => logEvent(event, api, events, now)}
+                onClick={handleLog}
               >
-                <History size={14} />
+                {logged ? (
+                  <>
+                    <Check size={13} strokeWidth={2.5} />
+                    Logged
+                  </>
+                ) : (
+                  <History size={14} />
+                )}
               </button>
             )}
 

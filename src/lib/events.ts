@@ -74,17 +74,32 @@ export function nextEvent(events: Event[], now: number): Event | null {
   );
 }
 
+/** Enough of a task to say what `startEvent` / `logEvent` just did — its own
+ *  name and group, which may have moved on from the booking's if it was
+ *  renamed since. */
+export interface EventTask {
+  id: string;
+  name: string;
+  group: string | null;
+}
+
+/** How a task made from an event reads in a confirmation — `taskLabel`'s
+ *  shape, kept in step with it. */
+export function eventTaskLabel(task: EventTask): string {
+  return task.group === null ? task.name : `${task.group} · ${task.name}`;
+}
+
 /**
  * Made the first time an event goes onto the clock, whichever way it gets
  * there — title, group and estimate straight from the booking, so `startEvent`
  * and `logEvent` can't ever give the same meeting two different tasks.
  */
-function linkedTask(event: Event, api: TasksApi, events: EventsApi): string {
+function linkedTask(event: Event, api: TasksApi, events: EventsApi): EventTask {
   const title = event.title.trim() === "" ? "Untitled" : event.title.trim();
   const id = api.add(title, event.group);
   if (event.durationMs > 0) api.setEstimate(id, event.durationMs);
   events.link(event.id, id);
-  return id;
+  return { id, name: title, group: event.group };
 }
 
 /**
@@ -108,13 +123,15 @@ function findLinked(event: Event, api: TasksApi) {
  * which means a meeting that runs long trips the over-estimate alert already
  * in the app rather than needing one of its own.
  */
-export function startEvent(event: Event, api: TasksApi, events: EventsApi) {
+export function startEvent(event: Event, api: TasksApi, events: EventsApi): EventTask {
   const linked = findLinked(event, api);
   if (linked !== null) {
     api.start(linked.id);
-    return;
+    return { id: linked.id, name: linked.name, group: linked.group };
   }
-  api.start(linkedTask(event, api, events));
+  const made = linkedTask(event, api, events);
+  api.start(made.id);
+  return made;
 }
 
 /**
@@ -133,19 +150,23 @@ export function logEvent(
   api: TasksApi,
   events: EventsApi,
   now: number,
-) {
+): (EventTask & { loggedMs: number }) | null {
   const to = Math.min(eventEnd(event), now);
-  if (to <= event.start) return;
+  if (to <= event.start) return null;
 
   const linked = findLinked(event, api);
   // One log per booking, enforced here rather than only on the button that
   // happens to be disabled: `startEvent` keeps its own "never two tasks" rule
   // in the shared function precisely because the tray and a notification reach
   // it too, and anything wired to this later inherits the same guard.
-  if (linked !== null && elapsedMs(linked, now) > 0) return;
+  if (linked !== null && elapsedMs(linked, now) > 0) return null;
 
-  const id = linked !== null ? linked.id : linkedTask(event, api, events);
-  api.record(id, event.start, to);
+  const made: EventTask =
+    linked !== null
+      ? { id: linked.id, name: linked.name, group: linked.group }
+      : linkedTask(event, api, events);
+  api.record(made.id, event.start, to);
+  return { ...made, loggedMs: to - event.start };
 }
 
 /** Is this event's task the one currently counting? */

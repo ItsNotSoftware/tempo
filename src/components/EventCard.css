@@ -98,7 +98,8 @@
 .event:hover .event__actions > button,
 .event:focus-within .event__actions > button,
 .event__actions > button.is-on,
-.event__actions > button.is-armed {
+.event__actions > button.is-armed,
+.event__actions > button.event__logged {
   opacity: 1;
 }
 
@@ -112,6 +113,31 @@
 .event__actions > button:disabled:hover {
   background: none;
   color: var(--text-faint);
+}
+
+/* Tracking, the way a running task's own toggle reads: filled solid rather
+   than just a tinted icon, so the card you just pressed ▶ on is unmistakably
+   the one going. */
+.event__play.is-on {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.event__play.is-on:hover {
+  filter: brightness(1.1);
+}
+
+/* Logged says so in words, the same spirit as the delete confirmation's
+   "Delete?" — a tint alone reads as "nothing happened". */
+.event__actions > button.event__logged,
+.event__actions > button.event__logged:disabled,
+.event__actions > button.event__logged:disabled:hover {
+  width: auto;
+  gap: 5px;
+  padding: 0 9px 0 7px;
+  color: var(--success);
+  background: var(--success-soft);
+  font-size: 13px;
 }
 
 /* The length gives its room to the buttons rather than wrapping the row. */

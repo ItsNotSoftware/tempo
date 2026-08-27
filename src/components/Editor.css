@@ -121,3 +121,104 @@
 .cm-md-block {
   padding: 6px 0;
 }
+
+/* --- Find ---
+   Our own DOM in the panel slot CodeMirror gives us, floated over the page's
+   top-right corner so opening it doesn't push a line of the note out of view.
+   The buttons wear the shared `.icon-btn` shapes; only the strip is here.
+
+   The three rules below dress what CodeMirror builds around the strip, so
+   they go through `.editor` as well: the search package scopes its own
+   styles with two generated classes, and anything shorter than three loses
+   to them however it is written. Order settles the tie — CodeMirror mounts
+   its sheet at the top of <head>, and ours is after it. */
+
+.editor .cm-editor .cm-panels {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: auto;
+  /* Shrink-to-fit, but never past the page: a percentage on the strip inside
+     has nothing to resolve against until this box is bounded. */
+  max-width: 100%;
+  z-index: 12;
+  border: none;
+  background: transparent;
+}
+
+.editor .cm-editor .cm-searchMatch {
+  border-radius: 3px;
+  outline: 1px solid var(--accent-line);
+  background: var(--accent-soft);
+}
+
+/* The one you're on, so stepping through them is something you can follow. */
+.editor .cm-editor .cm-searchMatch-selected {
+  outline-color: var(--accent);
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.cm-find {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  margin: 10px 12px;
+  max-width: calc(100% - 24px);
+  padding: 4px 6px 4px 11px;
+  border: 1px solid var(--border-strong);
+  border-radius: 11px;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow);
+}
+
+.cm-find__glass {
+  display: flex;
+  margin-right: 3px;
+  color: var(--text-faint);
+}
+
+/* Comfortable when the page has the room, and the first thing to give when it
+   doesn't — the strip has to fit a pane with the page list still open. */
+.cm-find__field {
+  flex: 1 1 148px;
+  min-width: 52px;
+  border: none;
+  background: none;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13.5px;
+  outline: none;
+}
+
+.cm-find__field::placeholder {
+  color: var(--text-faint);
+}
+
+/* The strip takes the focus ring rather than the field: a second rounded box
+   nested inside the first reads as two controls, not one. */
+.cm-find__field:focus-visible {
+  outline: none;
+}
+
+.cm-find:focus-within {
+  border-color: var(--accent);
+}
+
+/* Tabular and fixed-width, so stepping through matches doesn't shuffle the
+   buttons out from under the click that's stepping them. */
+.cm-find__tally {
+  min-width: 42px;
+  padding-right: 3px;
+  text-align: right;
+  color: var(--text-faint);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.cm-find__tally.is-none {
+  color: var(--danger);
+}

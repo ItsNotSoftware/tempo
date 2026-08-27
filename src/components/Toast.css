@@ -1,0 +1,31 @@
+/* Out of the flow, so it never shifts a screen's layout — and anchored to
+   `.app` rather than the viewport, which the app's `zoom` would put it off
+   centre of. Low enough to clear the schedule's day nav and its hairline. */
+.toast {
+  position: absolute;
+  left: 50%;
+  bottom: 30px;
+  z-index: 50;
+  max-width: min(420px, calc(100% - 48px));
+  padding: 11px 18px;
+  border: 1px solid var(--border-strong);
+  border-radius: 11px;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow);
+  color: var(--text);
+  font-size: 14.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, 6px);
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+
+.toast.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}

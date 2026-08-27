@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   eventEnd,
   eventsOn,
+  eventTaskLabel,
   eventTone,
   logEvent,
   nextEvent,
@@ -111,6 +112,29 @@ describe("startEvent", () => {
 
     expect(calls.some((c) => c.startsWith("estimate"))).toBe(false);
   });
+
+  // The caller needs to say what happened — a toast names the task it just
+  // put the clock on.
+  it("hands back the task it just made", () => {
+    const { api, events } = stubs();
+    const task = startEvent(booking({ group: "TEMPO-42" }), api, events);
+
+    expect(task).toEqual({ id: "t1", name: "Standup", group: "TEMPO-42" });
+  });
+
+  // Resuming reads the linked task's own name and group, not the booking's —
+  // it may have been renamed since the task was made.
+  it("hands back the linked task as it stands now, not as the booking reads", () => {
+    const first = stubs();
+    startEvent(booking({ group: "TEMPO-42" }), first.api, first.events);
+    first.tasks[0].name = "Standup (renamed)";
+    first.tasks[0].group = "TEMPO-99";
+
+    const { api, events } = stubs(first.tasks);
+    const task = startEvent(booking({ taskId: "t1" }), api, events);
+
+    expect(task).toEqual({ id: "t1", name: "Standup (renamed)", group: "TEMPO-99" });
+  });
 });
 
 describe("eventsOn / nextEvent", () => {
@@ -163,7 +187,7 @@ describe("logEvent", () => {
   it("makes and links a task on the first log", () => {
     const { api, events, calls } = stubs();
     const event = booking({ group: "TEMPO-42", start: at(10), durationMs: HOUR });
-    logEvent(event, api, events, at(11));
+    const result = logEvent(event, api, events, at(11));
 
     expect(calls).toEqual([
       "add TEMPO-42/Standup",
@@ -171,6 +195,8 @@ describe("logEvent", () => {
       "link e1 t1",
       `record t1 ${at(10)} ${at(11)}`,
     ]);
+    // What the caller needs to say a toast: the task and how much landed.
+    expect(result).toEqual({ id: "t1", name: "Standup", group: "TEMPO-42", loggedMs: HOUR });
   });
 
   // Two paths onto the clock, one task — the same rule startEvent keeps.
@@ -195,9 +221,10 @@ describe("logEvent", () => {
   // Nothing to log before it's started.
   it("does nothing for a booking that hasn't started", () => {
     const { api, events, calls } = stubs();
-    logEvent(booking({ start: at(10) }), api, events, at(9));
+    const result = logEvent(booking({ start: at(10) }), api, events, at(9));
 
     expect(calls).toEqual([]);
+    expect(result).toBeNull();
   });
 
   // The rule lives in `logEvent`, not in the button that happens to be
@@ -217,8 +244,21 @@ describe("logEvent", () => {
       },
     ];
     const { api, events, calls } = stubs(tracked);
-    logEvent(booking({ taskId: "t1" }), api, events, at(12));
+    const result = logEvent(booking({ taskId: "t1" }), api, events, at(12));
 
     expect(calls).toEqual([]);
+    expect(result).toBeNull();
+  });
+});
+
+describe("eventTaskLabel", () => {
+  it("reads group and name together, the same shape as taskLabel", () => {
+    expect(eventTaskLabel({ id: "t1", name: "Standup", group: "TEMPO-42" })).toBe(
+      "TEMPO-42 · Standup",
+    );
+  });
+
+  it("drops the separator for a task with no group", () => {
+    expect(eventTaskLabel({ id: "t1", name: "Dentist", group: null })).toBe("Dentist");
   });
 });

@@ -26,6 +26,9 @@ interface ScheduleProps {
   /** The day in view, shared with the timer and the notebook. */
   day: number;
   onDay: (dayStart: number) => void;
+  /** Say what a card's ▶ or Log just did — the schedule itself doesn't
+   *  otherwise change shape when either fires. */
+  onToast: (message: string) => void;
 }
 
 const HOUR = 3_600_000;
@@ -40,7 +43,7 @@ const CLOSES = 20;
  * This is the one screen that looks forward — everything else in the app is a
  * measurement, and a measurement can only be of something that already happened.
  */
-export function Schedule({ api, events, now, day, onDay }: ScheduleProps) {
+export function Schedule({ api, events, now, day, onDay, onToast }: ScheduleProps) {
   const today = startOfDay(now);
   const from = day;
   const to = addDays(day, 1);
@@ -120,6 +123,7 @@ export function Schedule({ api, events, now, day, onDay }: ScheduleProps) {
               day={day}
               api={api}
               events={events}
+              onToast={onToast}
               narrow={lanes > 1}
               readOnly={past}
               style={{
