@@ -1,11 +1,19 @@
-import { useEffect, useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type MouseEvent as ReactMouseEvent,
+  type RefObject,
+} from "react";
 import { CalendarClock, Plus } from "lucide-react";
 import { DayNav } from "../components/DayNav";
 import { EventCard } from "../components/EventCard";
 import {
+  dayWindow,
   eventEnd,
   eventsOn,
-  type Event,
+  lay,
   type EventsApi,
 } from "../lib/events";
 import type { TasksApi } from "../lib/tasks";
@@ -34,9 +42,15 @@ interface ScheduleProps {
 const HOUR = 3_600_000;
 /** Tall enough that a half-hour booking is still a readable block. */
 const HOUR_PX = 46;
-/** The hours a working day is assumed to cover before anything is booked. */
-const OPENS = 8;
-const CLOSES = 20;
+/** The shortest a block is ever drawn, so a five-minute booking is still
+ *  something you can read and hit. `lay` packs lanes against the same figure —
+ *  two blocks drawn on top of each other have to go side by side whatever
+ *  their times say. The 3px is the gap every block already leaves below
+ *  itself: encroaching by that much is what a full-length booking does too,
+ *  and splitting a cluster three ways over it would cost far more room than
+ *  it saves. */
+const MIN_PX = 24;
+const MIN_MS = ((MIN_PX - 3) / HOUR_PX) * HOUR;
 
 /**
  * The day as a column of hours, with what's booked sitting where it falls.
@@ -50,24 +64,46 @@ export function Schedule({ api, events, now, day, onDay, onToast }: ScheduleProp
   const isToday = day === today;
   // A day that's been and gone: still worth reading, nothing left to book.
   const past = day < today;
+  // Ahead of now, so there is nothing to put on the clock yet — ▶ would start
+  // a timer today for a meeting that hasn't happened.
+  const ahead = day > today;
 
   const booked = eventsOn(events.events, from, to);
   const total = booked.reduce((sum, e) => sum + e.durationMs, 0);
 
+  // The booking form's time lives up here: the grid aims it by being clicked,
+  // and it steps on to the end of whatever was just booked.
+  const [at, setAt] = useState(() => defaultAt(day, now));
+  const titleRef = useRef<HTMLInputElement>(null);
+  useEffect(() => setAt(defaultAt(day, Date.now())), [day]);
+
   // Hours are `from + n * HOUR` rather than calendar hours, so the 23- and
   // 25-hour days the clocks change on still line up with the bookings on them.
   const hourOf = (ts: number) => (ts - from) / HOUR;
-  const first = Math.max(
-    0,
-    Math.floor(Math.min(OPENS, ...booked.map((e) => hourOf(e.start)))),
-  );
-  const last = Math.min(
-    24,
-    Math.ceil(Math.max(CLOSES, ...booked.map((e) => hourOf(eventEnd(e))))),
-  );
+  const { first, last } = dayWindow(booked, from, isToday ? now : null);
   // One more line than there are hours, so the day is closed off at the bottom.
   const hours = Array.from({ length: last - first + 1 }, (_, i) => first + i);
   const top = (ts: number) => (hourOf(ts) - first) * HOUR_PX;
+
+  // A day can run to eighteen hours once anything is booked outside working
+  // ones, so opening the screen at the top would land you on an empty 06:00.
+  const anchor = useRef<HTMLDivElement>(null);
+  const anchorAt = isToday ? now : (booked[0]?.start ?? null);
+  useEffect(() => {
+    anchor.current?.scrollIntoView({ block: "nearest" });
+  }, [day]);
+
+  /** Click an empty stretch of the day to aim the booking form at it. */
+  function aimAt(e: ReactMouseEvent<HTMLDivElement>) {
+    if (past || (e.target as HTMLElement).closest(".event") !== null) return;
+    const box = e.currentTarget.getBoundingClientRect();
+    // Read as a fraction of the box rather than in pixels: the app carries a
+    // `zoom`, and a client coordinate is in the scaled space `HOUR_PX` isn't.
+    const hour = first + ((e.clientY - box.top) / box.height) * (last - first);
+    const quarter = Math.min(last, Math.max(first, Math.round(hour * 4) / 4));
+    setAt(formatTimeOfDay(from + quarter * HOUR));
+    titleRef.current?.focus();
+  }
 
   return (
     <div className="sched">
@@ -83,7 +119,15 @@ export function Schedule({ api, events, now, day, onDay, onToast }: ScheduleProp
         <DayNav day={day} now={now} onDay={onDay} forward />
       </header>
 
-      {!past && <Booking day={day} now={now} events={events} />}
+      {!past && (
+        <Booking
+          day={day}
+          events={events}
+          at={at}
+          onAt={setAt}
+          titleRef={titleRef}
+        />
+      )}
 
       <div className="sched__grid" style={{ height: (last - first) * HOUR_PX }}>
         {hours.map((hour) => (
@@ -92,15 +136,34 @@ export function Schedule({ api, events, now, day, onDay, onToast }: ScheduleProp
             key={hour}
             style={{ top: (hour - first) * HOUR_PX }}
           >
+            {/* The closing line is the next day's midnight, and `00:00` at the
+                foot of a day reads as its top. The gutter keeps its width. */}
             <span className="sched__label">
-              {formatTimeOfDay(from + hour * HOUR)}
+              {hour === 24 ? "" : formatTimeOfDay(from + hour * HOUR)}
             </span>
           </div>
         ))}
 
-        <div className="sched__lanes">
-          {isToday && hourOf(now) >= first && hourOf(now) <= last && (
-            <div className="sched__now" style={{ top: top(now) }} aria-hidden />
+        <div
+          className={`sched__lanes${past ? "" : " sched__lanes--bookable"}`}
+          onClick={aimAt}
+        >
+          {anchorAt !== null && (
+            <div
+              ref={anchor}
+              className="sched__anchor"
+              /* An hour behind and three ahead: the screen scrolls the
+                 minimum to bring that band into view, which leaves what's
+                 coming below the line rather than the morning above it. */
+              style={{ top: top(anchorAt) - HOUR_PX, height: HOUR_PX * 4 }}
+              aria-hidden
+            />
+          )}
+
+          {isToday && (
+            <div className="sched__now" style={{ top: top(now) }} aria-hidden>
+              <span className="sched__now-time">{formatTimeOfDay(now)}</span>
+            </div>
           )}
 
           {booked.length === 0 && (
@@ -109,13 +172,13 @@ export function Schedule({ api, events, now, day, onDay, onToast }: ScheduleProp
               <p>{past ? "Nothing was booked." : "Nothing booked yet."}</p>
               {!past && (
                 <p className="sched__empty-sub">
-                  Book a meeting and it&rsquo;ll sit where it falls in the day.
+                  Click an hour, or book above — it&rsquo;ll sit where it falls.
                 </p>
               )}
             </div>
           )}
 
-          {lay(booked).map(({ event, lane, lanes }) => (
+          {lay(booked, MIN_MS).map(({ event, lane, lanes }) => (
             <EventCard
               key={event.id}
               event={event}
@@ -126,11 +189,12 @@ export function Schedule({ api, events, now, day, onDay, onToast }: ScheduleProp
               onToast={onToast}
               narrow={lanes > 1}
               readOnly={past}
+              canStart={!past && !ahead}
               style={{
                 top: Math.max(0, top(event.start)),
                 // Clamped so a 5-minute booking is still something you can hit.
                 height: Math.max(
-                  24,
+                  MIN_PX,
                   (Math.min(eventEnd(event), to) - Math.max(event.start, from)) /
                     HOUR *
                     HOUR_PX -
@@ -147,50 +211,17 @@ export function Schedule({ api, events, now, day, onDay, onToast }: ScheduleProp
   );
 }
 
-interface Laid {
-  event: Event;
-  lane: number;
-  lanes: number;
-}
-
-/**
- * Side by side when two bookings overlap. Each cluster of overlapping events is
- * split only as many ways as that cluster needs, so one double-booked hour
- * doesn't squeeze the rest of the day into half the width.
- */
-function lay(booked: Event[]): Laid[] {
-  const laid: Laid[] = [];
-  let cluster: Laid[] = [];
-  let lanes: number[] = []; // when each lane comes free
-  let clusterEnd = -Infinity;
-
-  const close = () => {
-    for (const item of cluster) item.lanes = lanes.length;
-    laid.push(...cluster);
-    cluster = [];
-    lanes = [];
-  };
-
-  for (const event of booked) {
-    if (event.start >= clusterEnd) close();
-
-    let lane = lanes.findIndex((free) => free <= event.start);
-    if (lane === -1) lane = lanes.length;
-    lanes[lane] = eventEnd(event);
-
-    cluster.push({ event, lane, lanes: 1 });
-    clusterEnd = Math.max(clusterEnd, eventEnd(event));
-  }
-  close();
-
-  return laid;
-}
-
 /** The next half hour — where a booking starts unless you say otherwise. */
 function defaultAt(day: number, now: number): string {
-  if (startOfDay(now) !== day) return formatTimeOfDay(day + 9 * HOUR);
-  const half = 30 * 60_000;
-  return formatTimeOfDay(Math.ceil((now + 1) / half) * half);
+  const when = new Date(startOfDay(now) === day ? now : day);
+  // Built through `Date` rather than by adding milliseconds, so the hour the
+  // clocks change still lands where it reads.
+  if (startOfDay(now) === day) {
+    when.setMinutes(Math.ceil((when.getMinutes() + 1) / 30) * 30, 0, 0);
+  } else {
+    when.setHours(9, 0, 0, 0);
+  }
+  return formatTimeOfDay(when.getTime());
 }
 
 /**
@@ -201,21 +232,19 @@ function defaultAt(day: number, now: number): string {
  */
 function Booking({
   day,
-  now,
   events,
+  at,
+  onAt,
+  titleRef,
 }: {
   day: number;
-  now: number;
   events: EventsApi;
+  at: string;
+  onAt: (at: string) => void;
+  titleRef: RefObject<HTMLInputElement | null>;
 }) {
   const [title, setTitle] = useState("");
-  const [at, setAt] = useState(() => defaultAt(day, now));
   const [length, setLength] = useState("30m");
-
-  // Stepping to another day re-aims the time at that day's morning.
-  useEffect(() => {
-    setAt(defaultAt(day, Date.now()));
-  }, [day]);
 
   const start = parseTimeOfDay(at, day);
   const durationMs = parseEstimate(length);
@@ -226,11 +255,16 @@ function Booking({
     if (!ready || start === null || durationMs === null) return;
     events.add(title.trim(), start, durationMs);
     setTitle("");
+    // Aim at the end of what was just booked: a morning of back-to-back
+    // meetings is typed one after another, and leaving the time where it was
+    // would quietly stack the next one on top of this.
+    onAt(formatTimeOfDay(start + durationMs));
   }
 
   return (
     <form className="booking" onSubmit={submit}>
       <input
+        ref={titleRef}
         className="booking__title"
         value={title}
         placeholder="What's booked?"
@@ -251,7 +285,7 @@ function Booking({
           value={at}
           aria-label="Starts at"
           spellCheck={false}
-          onChange={(e) => setAt(e.currentTarget.value)}
+          onChange={(e) => onAt(e.currentTarget.value)}
         />
       </label>
 

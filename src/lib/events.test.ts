@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  dayWindow,
   eventEnd,
   eventsOn,
   eventTaskLabel,
   eventTone,
+  lay,
   logEvent,
   nextEvent,
   startEvent,
@@ -260,5 +262,101 @@ describe("eventTaskLabel", () => {
 
   it("drops the separator for a task with no group", () => {
     expect(eventTaskLabel({ id: "t1", name: "Dentist", group: null })).toBe("Dentist");
+  });
+});
+
+describe("dayWindow", () => {
+  const MINUTE = 60_000;
+
+  it("covers the working day when nothing is booked", () => {
+    expect(dayWindow([], dayStart, null)).toEqual({ first: 8, last: 20 });
+  });
+
+  it("widens to hold a booking outside it, whole hours either way", () => {
+    const early = booking({ start: at(6, 15), durationMs: 45 * MINUTE });
+    const late = booking({ id: "e2", start: at(21, 10), durationMs: HOUR });
+
+    expect(dayWindow([early, late], dayStart, null)).toEqual({ first: 6, last: 23 });
+  });
+
+  it("makes room for now on today, whatever is booked", () => {
+    expect(dayWindow([], dayStart, at(5, 40))).toEqual({ first: 5, last: 20 });
+    expect(dayWindow([], dayStart, at(23, 10))).toEqual({ first: 8, last: 24 });
+  });
+
+  it("never runs past either end of the day", () => {
+    const overnight = booking({ start: at(23, 30), durationMs: 3 * HOUR });
+    const before = booking({ id: "e2", start: at(0) - HOUR, durationMs: 2 * HOUR });
+
+    expect(dayWindow([overnight, before], dayStart, null)).toEqual({
+      first: 0,
+      last: 24,
+    });
+  });
+});
+
+describe("lay", () => {
+  const MINUTE = 60_000;
+  const lanesOf = (booked: Event[], minMs = 0) =>
+    lay(booked, minMs).map(({ event, lane, lanes }) => [event.id, lane, lanes]);
+
+  it("gives a day that never overlaps the full width", () => {
+    const morning = booking({ id: "a", start: at(9), durationMs: HOUR });
+    const noon = booking({ id: "b", start: at(12), durationMs: HOUR });
+
+    expect(lanesOf([morning, noon])).toEqual([
+      ["a", 0, 1],
+      ["b", 0, 1],
+    ]);
+  });
+
+  it("splits only the cluster that overlaps", () => {
+    const a = booking({ id: "a", start: at(9), durationMs: 2 * HOUR });
+    const b = booking({ id: "b", start: at(10), durationMs: HOUR });
+    const alone = booking({ id: "c", start: at(15), durationMs: HOUR });
+
+    expect(lanesOf([a, b, alone])).toEqual([
+      ["a", 0, 2],
+      ["b", 1, 2],
+      ["c", 0, 1],
+    ]);
+  });
+
+  it("reuses a lane once its booking has finished", () => {
+    const a = booking({ id: "a", start: at(9), durationMs: 3 * HOUR });
+    const b = booking({ id: "b", start: at(9, 30), durationMs: HOUR });
+    const c = booking({ id: "c", start: at(10, 30), durationMs: HOUR });
+
+    expect(lanesOf([a, b, c])).toEqual([
+      ["a", 0, 2],
+      ["b", 1, 2],
+      ["c", 1, 2],
+    ]);
+  });
+
+  it("splits two short bookings that only collide once drawn", () => {
+    const a = booking({ id: "a", start: at(9, 30), durationMs: 10 * MINUTE });
+    const b = booking({ id: "b", start: at(9, 40), durationMs: 10 * MINUTE });
+
+    // On the times alone they sit end to end, so one lane is right.
+    expect(lanesOf([a, b])).toEqual([
+      ["a", 0, 1],
+      ["b", 0, 1],
+    ]);
+    // Drawn at a hittable minimum they land on top of each other.
+    expect(lanesOf([a, b], 30 * MINUTE)).toEqual([
+      ["a", 0, 2],
+      ["b", 1, 2],
+    ]);
+  });
+
+  it("keeps a short booking out of the way of the next hour's", () => {
+    const a = booking({ id: "a", start: at(9), durationMs: 5 * MINUTE });
+    const b = booking({ id: "b", start: at(10), durationMs: HOUR });
+
+    expect(lanesOf([a, b], 30 * MINUTE)).toEqual([
+      ["a", 0, 1],
+      ["b", 0, 1],
+    ]);
   });
 });

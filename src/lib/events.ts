@@ -65,6 +65,88 @@ export function eventsOn(events: Event[], from: number, to: number): Event[] {
     .sort((a, b) => a.start - b.start || a.createdAt - b.createdAt);
 }
 
+/** The hours a working day is assumed to cover before anything is booked. */
+const OPENS = 8;
+const CLOSES = 20;
+
+/**
+ * The hours the day's column has to cover: the working day, widened to hold
+ * anything booked outside it, and — on today — `now`, because the hairline is
+ * the one thing on the screen that has to be visible whatever is booked.
+ * `now` is `null` on any other day, which has no hairline to make room for.
+ *
+ * Counted in hours from `dayStart` rather than in calendar hours, so the 23-
+ * and 25-hour days the clocks change on still line up with the bookings on
+ * them.
+ */
+export function dayWindow(
+  booked: Event[],
+  dayStart: number,
+  now: number | null,
+): { first: number; last: number } {
+  const hourOf = (ts: number) => (ts - dayStart) / 3_600_000;
+  const marks = now === null ? [] : [hourOf(now)];
+  return {
+    first: Math.max(
+      0,
+      Math.floor(Math.min(OPENS, ...marks, ...booked.map((e) => hourOf(e.start)))),
+    ),
+    last: Math.min(
+      24,
+      Math.ceil(Math.max(CLOSES, ...marks, ...booked.map((e) => hourOf(eventEnd(e))))),
+    ),
+  };
+}
+
+/** Where a booking sits once the day is drawn: which lane, of how many. */
+export interface Laid {
+  event: Event;
+  lane: number;
+  lanes: number;
+}
+
+/**
+ * Side by side when two bookings collide. Each cluster of colliding events is
+ * split only as many ways as that cluster needs, so one double-booked hour
+ * doesn't squeeze the rest of the day into half the width.
+ *
+ * Collision is measured on what gets *drawn*, not on what was booked: `minMs`
+ * is the shortest span the screen can draw and still leave something you can
+ * hit, so two ten-minute bookings ten minutes apart don't overlap in the diary
+ * but do overlap on the screen — and packing them into one lane would print
+ * the second one's name over the first's.
+ */
+export function lay(booked: Event[], minMs = 0): Laid[] {
+  const drawnEnd = (event: Event) =>
+    Math.max(eventEnd(event), event.start + minMs);
+
+  const laid: Laid[] = [];
+  let cluster: Laid[] = [];
+  let lanes: number[] = []; // when each lane comes free
+  let clusterEnd = -Infinity;
+
+  const close = () => {
+    for (const item of cluster) item.lanes = lanes.length;
+    laid.push(...cluster);
+    cluster = [];
+    lanes = [];
+  };
+
+  for (const event of booked) {
+    if (event.start >= clusterEnd) close();
+
+    let lane = lanes.findIndex((free) => free <= event.start);
+    if (lane === -1) lane = lanes.length;
+    lanes[lane] = drawnEnd(event);
+
+    cluster.push({ event, lane, lanes: 1 });
+    clusterEnd = Math.max(clusterEnd, drawnEnd(event));
+  }
+  close();
+
+  return laid;
+}
+
 /** The next thing due, from `now` on; `null` when the day's run out. */
 export function nextEvent(events: Event[], now: number): Event | null {
   return (

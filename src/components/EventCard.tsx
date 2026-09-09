@@ -37,6 +37,9 @@ interface EventCardProps {
   /** A day that's been and gone: nothing left to book or to start, but a
    *  meeting you actually sat in is still worth logging. */
   readOnly?: boolean;
+  /** Whether ▶ is on offer. A day ahead of now has nothing to put on the
+   *  clock — starting tomorrow's meeting would time it today. */
+  canStart?: boolean;
 }
 
 /** The six hues a booking can be pinned to, same ones a group hashes into. */
@@ -53,6 +56,7 @@ export function EventCard({
   style,
   narrow = false,
   readOnly = false,
+  canStart = true,
 }: EventCardProps) {
   const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -124,7 +128,15 @@ export function EventCard({
       }
     >
       {editing ? (
-        <form className="event__edit" onSubmit={commit}>
+        <form
+          className="event__edit"
+          onSubmit={commit}
+          // On the form, not the name: Escape has to back out from whichever
+          // field you got as far as, and there is no other way out of it.
+          onKeyDown={(e) => {
+            if (e.key === "Escape") setEditing(false);
+          }}
+        >
           <div className="event__edit-row">
             <input
               name="title"
@@ -135,9 +147,6 @@ export function EventCard({
               aria-label="Event name"
               spellCheck={false}
               autoFocus
-              onKeyDown={(e) => {
-                if (e.key === "Escape") setEditing(false);
-              }}
             />
             <input
               name="at"
@@ -184,7 +193,7 @@ export function EventCard({
           </div>
         </form>
       ) : (
-        <>
+        <div className="event__row">
           <i className="dot dot--sm event__dot" />
           <time className="event__when" dateTime={new Date(event.start).toISOString()}>
             {formatTimeOfDay(event.start)}
@@ -204,7 +213,7 @@ export function EventCard({
           )}
 
           <div className="event__actions">
-            {!readOnly && (
+            {canStart && (
               <button
                 className={`icon-btn icon-btn--sm event__play${tracking ? " is-on" : ""}`}
                 title={tracking ? "Tracking this" : "Start a timer for this"}
@@ -265,7 +274,7 @@ export function EventCard({
               </>
             )}
           </div>
-        </>
+        </div>
       )}
     </article>
   );

@@ -28,13 +28,15 @@
   --group-5: #f27a94;
   --group-6: #8ec07c;
 
-  /* Same six hues, for a coloured block rather than a coloured edge. */
-  --group-1-soft: rgba(108, 155, 255, 0.13);
-  --group-2-soft: rgba(197, 138, 249, 0.13);
-  --group-3-soft: rgba(79, 196, 207, 0.13);
-  --group-4-soft: rgba(227, 169, 79, 0.13);
-  --group-5-soft: rgba(242, 122, 148, 0.13);
-  --group-6-soft: rgba(142, 192, 124, 0.13);
+  /* Same six hues, for a coloured block rather than a coloured edge. Carried
+     stronger than the other `-soft` tints: these fill a whole booking on a
+     ground this dark, where 0.13 reads as grey with a coloured edge. */
+  --group-1-soft: rgba(108, 155, 255, 0.2);
+  --group-2-soft: rgba(197, 138, 249, 0.2);
+  --group-3-soft: rgba(79, 196, 207, 0.2);
+  --group-4-soft: rgba(227, 169, 79, 0.2);
+  --group-5-soft: rgba(242, 122, 148, 0.2);
+  --group-6-soft: rgba(142, 192, 124, 0.2);
 
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
   /* A hairline top highlight sells "raised" on a background this dark, where a
